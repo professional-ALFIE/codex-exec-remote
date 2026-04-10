@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { basename } from "node:path";
 import { AppServerClient } from "./client";
 import {
   mapRawThreadItem,
@@ -57,6 +58,7 @@ type PromptArgs = StartArgs | ResumeArgs;
 type CliArgs = ServeArgs | PromptArgs | { command: "help" };
 
 const DEFAULT_REMOTE = "ws://127.0.0.1:4501";
+const SELF_EXECUTABLE_NAMES = new Set(["codex-exec-remote", "cer"]);
 
 export async function main(argv: string[]): Promise<number> {
   const parsed = parseArgs(argv);
@@ -678,8 +680,22 @@ function isAgentMessageItem(value: unknown): value is { type: "agentMessage"; te
   );
 }
 
+export function normalizeCompiledCliArgv(argv: string[]): string[] {
+  const cliArgv = argv.slice(2);
+  if (cliArgv.length !== 1) {
+    return cliArgv;
+  }
+
+  const [onlyArg] = cliArgv;
+  if (!onlyArg) {
+    return cliArgv;
+  }
+
+  return SELF_EXECUTABLE_NAMES.has(basename(onlyArg)) ? [] : cliArgv;
+}
+
 if (import.meta.main) {
-  const exitCode = await main(process.argv.slice(2)).catch((error) => {
+  const exitCode = await main(normalizeCompiledCliArgv(process.argv)).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`[codex-exec-remote] ✗ ${message}\n`);
     return 2;

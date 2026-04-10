@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseArgs } from "../src/index";
+import { normalizeCompiledCliArgv, parseArgs } from "../src/index";
 
 describe("index cli parsing", () => {
   test("no args means serve mode with default listen", () => {
@@ -66,5 +66,29 @@ describe("index cli parsing", () => {
       timeoutSec: 300,
       codexBin: "codex"
     });
+  });
+
+  test("compiled no-arg execution strips self executable name", () => {
+    expect(
+      normalizeCompiledCliArgv(["bun", "/$bunfs/root/codex-exec-remote", "cer"])
+    ).toEqual([]);
+
+    expect(
+      normalizeCompiledCliArgv([
+        "bun",
+        "/$bunfs/root/codex-exec-remote",
+        "/Users/noseung-gyeong/bin/codex-exec-remote"
+      ])
+    ).toEqual([]);
+  });
+
+  test("compiled argv keeps real user arguments", () => {
+    expect(
+      normalizeCompiledCliArgv(["bun", "/$bunfs/root/codex-exec-remote", "start", "hello"])
+    ).toEqual(["start", "hello"]);
+
+    expect(
+      normalizeCompiledCliArgv(["bun", "/$bunfs/root/codex-exec-remote", "--listen"])
+    ).toEqual(["--listen"]);
   });
 });
