@@ -604,16 +604,45 @@ function expectValue(tokens: string[], index: number, flag: string): string {
 }
 
 function printUsage(): void {
-  process.stdout.write(
-    [
-      "Usage:",
-      "  codex-exec-remote [--listen ws://127.0.0.1:4501] [--codex-bin codex]",
-      "  codex-exec-remote serve [--listen ws://127.0.0.1:4501] [--codex-bin codex]",
-      "  codex-exec-remote start \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]",
-      "  codex-exec-remote resume <thread-id> \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]",
-      "  codex-exec-remote resume --last \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]"
-    ].join("\n") + "\n"
-  );
+  process.stdout.write(`codex-exec-remote — Remote execution bridge for Codex app-server
+
+⚠️  Full permission mode. All server requests are auto-approved.
+
+Usage: codex-exec-remote [OPTIONS]
+       codex-exec-remote <COMMAND> [ARGS]
+
+Commands:
+  (default)                    Launch codex app-server (ws://127.0.0.1:4501)
+  start "<prompt>"             Start a new thread and send a turn
+  resume <id> "<prompt>"       Resume an existing thread
+  resume --last "<prompt>"     Resume the most recent thread
+  help                         Print this help message
+
+Serve Options:
+  --listen <url>               App-server listen address
+                               [default: ws://127.0.0.1:4501]
+  --codex-bin <path>           Path to codex binary
+                               [default: codex]
+
+Start / Resume Options:
+  --remote <url>               App-server address to connect to
+                               [default: ws://127.0.0.1:4501]
+  --auth-token-env <VAR>       Read Bearer token from this env var
+  --json                       Emit ThreadEvent JSONL to stdout
+  --timeout <sec>              Max wait time in seconds
+                               [default: 300]
+  --codex-bin <path>           Path to codex binary
+                               [default: codex]
+
+  -h, --help                   Print help
+
+Examples:
+  codex-exec-remote                          Launch app-server
+  codex-exec-remote --listen ws://0.0.0.0:9999
+  codex-exec-remote start "hello"            New thread
+  codex-exec-remote resume --last "continue" Resume last thread
+  codex-exec-remote start "hello" --json     JSONL output
+`);
 }
 
 function isObjectWithThreadId(value: unknown): value is { threadId: string } {
