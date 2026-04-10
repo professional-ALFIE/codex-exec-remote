@@ -19,8 +19,37 @@ afterEach(async () => {
 });
 
 describe("main output modes", () => {
+  test("start subcommand starts a new thread and emits thread events", async () => {
+    const fixture = await startAppServerFixture();
+
+    const result = await captureProcessOutput(() =>
+      main(["start", "hello world", "--remote", fixture.url, "--json"])
+    );
+
+    expect(result.exitCode).toBe(0);
+
+    const events = result.stdout
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(events[0]).toEqual({
+      type: "thread.started",
+      thread_id: "thread-new"
+    });
+    expect(events.at(-1)).toEqual({
+      type: "turn.completed",
+      usage: {
+        input_tokens: 11,
+        cached_input_tokens: 2,
+        output_tokens: 3
+      }
+    });
+  });
+
   test("json mode emits codex exec style ThreadEvent JSONL", async () => {
-    const fixture = await startResumeFixture();
+    const fixture = await startAppServerFixture();
 
     const result = await captureProcessOutput(() =>
       main(["resume", "thread-1", "hello world", "--remote", fixture.url, "--json"])
@@ -123,7 +152,7 @@ describe("main output modes", () => {
   });
 
   test("non-json mode keeps final answer on stdout and logs on stderr", async () => {
-    const fixture = await startResumeFixture();
+    const fixture = await startAppServerFixture();
 
     const result = await captureProcessOutput(() =>
       main(["resume", "thread-1", "hello world", "--remote", fixture.url])
@@ -136,13 +165,28 @@ describe("main output modes", () => {
     expect(result.stderr).not.toContain("{\"type\":");
     expect(result.stdout).not.toContain("{\"type\":");
   });
+
+  test("resume --last resolves the most recent thread before sending a turn", async () => {
+    const fixture = await startAppServerFixture();
+
+    const result = await captureProcessOutput(() =>
+      main(["resume", "--last", "hello latest", "--remote", fixture.url])
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("Hello from thread read\n");
+    expect(result.stderr).toContain("[codex-exec-remote] thread resumed: thread-last");
+  });
 });
 
-async function startResumeFixture(): Promise<{ url: string }> {
+async function startAppServerFixture(): Promise<{ url: string }> {
   server = createServer();
   const wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (socket) => {
+    let activeThreadId = "thread-1";
+    let activeTurnId = "turn-1";
+
     socket.on("message", (data) => {
       const message = JSON.parse(String(data)) as Record<string, unknown>;
       const method = typeof message.method === "string" ? message.method : null;
@@ -157,12 +201,47 @@ async function startResumeFixture(): Promise<{ url: string }> {
         return;
       }
 
-      if (method === WIRE.THREAD_RESUME && id) {
+      if (method === WIRE.THREAD_LIST && id) {
         socket.send(
           JSON.stringify({
             id,
             result: {
-              thread: { id: "thread-1" }
+              data: [
+                {
+                  id: "thread-last"
+                }
+              ],
+              nextCursor: null
+            }
+          })
+        );
+        return;
+      }
+
+      if (method === WIRE.THREAD_START && id) {
+        activeThreadId = "thread-new";
+        socket.send(
+          JSON.stringify({
+            id,
+            result: {
+              thread: { id: activeThreadId }
+            }
+          })
+        );
+        return;
+      }
+
+      if (method === WIRE.THREAD_RESUME && id) {
+        const threadId =
+          typeof (message.params as { threadId?: unknown } | undefined)?.threadId === "string"
+            ? ((message.params as { threadId: string }).threadId)
+            : "thread-1";
+        activeThreadId = threadId;
+        socket.send(
+          JSON.stringify({
+            id,
+            result: {
+              thread: { id: activeThreadId }
             }
           })
         );
@@ -170,11 +249,18 @@ async function startResumeFixture(): Promise<{ url: string }> {
       }
 
       if (method === WIRE.TURN_START && id) {
+        activeTurnId =
+          activeThreadId === "thread-new"
+            ? "turn-new"
+            : activeThreadId === "thread-last"
+              ? "turn-last"
+              : "turn-1";
+
         socket.send(
           JSON.stringify({
             id,
             result: {
-              turn: { id: "turn-1", status: "inProgress" }
+              turn: { id: activeTurnId, status: "inProgress" }
             }
           })
         );
@@ -183,8 +269,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: "thread/tokenUsage/updated",
             params: {
-              threadId: "thread-1",
-              turnId: "turn-1",
+              threadId: activeThreadId,
+              turnId: activeTurnId,
               tokenUsage: {
                 total: {
                   totalTokens: 16,
@@ -210,8 +296,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: "turn/plan/updated",
             params: {
-              threadId: "thread-1",
-              turnId: "turn-1",
+              threadId: activeThreadId,
+              turnId: activeTurnId,
               explanation: null,
               plan: [
                 { step: "first step", status: "pending" },
@@ -225,8 +311,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: "turn/plan/updated",
             params: {
-              threadId: "thread-1",
-              turnId: "turn-1",
+              threadId: activeThreadId,
+              turnId: activeTurnId,
               explanation: null,
               plan: [
                 { step: "first step", status: "completed" },
@@ -240,8 +326,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: WIRE.ITEM_STARTED,
             params: {
-              threadId: "thread-1",
-              turnId: "turn-1",
+              threadId: activeThreadId,
+              turnId: activeTurnId,
               item: {
                 id: "msg-1",
                 type: "agentMessage",
@@ -255,8 +341,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: WIRE.AGENT_MESSAGE_DELTA,
             params: {
-              threadId: "thread-1",
-              turnId: "turn-1",
+              threadId: activeThreadId,
+              turnId: activeTurnId,
               itemId: "msg-1",
               delta: "Hello from delta"
             }
@@ -267,8 +353,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: WIRE.ITEM_COMPLETED,
             params: {
-              threadId: "thread-1",
-              turnId: "turn-1",
+              threadId: activeThreadId,
+              turnId: activeTurnId,
               item: {
                 id: "msg-1",
                 type: "agentMessage",
@@ -282,8 +368,8 @@ async function startResumeFixture(): Promise<{ url: string }> {
           JSON.stringify({
             method: WIRE.TURN_COMPLETED,
             params: {
-              threadId: "thread-1",
-              turn: { id: "turn-1", status: "completed" }
+              threadId: activeThreadId,
+              turn: { id: activeTurnId, status: "completed" }
             }
           })
         );
@@ -296,10 +382,10 @@ async function startResumeFixture(): Promise<{ url: string }> {
             id,
             result: {
               thread: {
-                id: "thread-1",
+                id: activeThreadId,
                 turns: [
                   {
-                    id: "turn-1",
+                    id: activeTurnId,
                     items: [
                       {
                         id: "msg-1",

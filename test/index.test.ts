@@ -10,10 +10,30 @@ describe("index cli parsing", () => {
     });
   });
 
-  test("--listen means serve mode with custom listen", () => {
-    expect(parseArgs(["--listen", "ws://127.0.0.1:9999"])).toEqual({
+  test("serve uses default listen", () => {
+    expect(parseArgs(["serve"])).toEqual({
+      command: "serve",
+      listen: "ws://127.0.0.1:4501",
+      codexBin: "codex"
+    });
+  });
+
+  test("serve accepts custom listen", () => {
+    expect(parseArgs(["serve", "--listen", "ws://127.0.0.1:9999"])).toEqual({
       command: "serve",
       listen: "ws://127.0.0.1:9999",
+      codexBin: "codex"
+    });
+  });
+
+  test("start subcommand means start new thread", () => {
+    expect(parseArgs(["start", "hello", "world"])).toEqual({
+      command: "start",
+      prompt: "hello world",
+      remote: "ws://127.0.0.1:4501",
+      authTokenEnv: undefined,
+      json: false,
+      timeoutSec: 300,
       codexBin: "codex"
     });
   });
@@ -23,9 +43,24 @@ describe("index cli parsing", () => {
       parseArgs(["resume", "thread-1", "hello world", "--remote", "ws://127.0.0.1:7777"])
     ).toEqual({
       command: "resume",
+      last: false,
       threadId: "thread-1",
       prompt: "hello world",
       remote: "ws://127.0.0.1:7777",
+      authTokenEnv: undefined,
+      json: false,
+      timeoutSec: 300,
+      codexBin: "codex"
+    });
+  });
+
+  test("resume --last treats positional as prompt", () => {
+    expect(parseArgs(["resume", "--last", "hello world"])).toEqual({
+      command: "resume",
+      last: true,
+      threadId: undefined,
+      prompt: "hello world",
+      remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
       timeoutSec: 300,

@@ -1,5 +1,14 @@
 #!/usr/bin/env bun
 
+import { AppServerClient } from "./client";
+import {
+  mapRawThreadItem,
+  todoListFromPlan,
+  type TodoListItem,
+  usageFromThreadTokenUsage,
+  zeroUsage
+} from "./exec-events";
+import { createOutput, extractCanonicalOutput } from "./output";
 import {
   WIRE,
   isAgentMessageDeltaParams,
@@ -8,22 +17,15 @@ import {
   isItemStartedParams,
   isNotification,
   isServerRequest,
-  isThreadTokenUsageUpdatedParams,
+  isThreadListResult,
   isThreadReadResult,
   isThreadResumeResult,
-  isTurnPlanUpdatedParams,
+  isThreadStartResult,
+  isThreadTokenUsageUpdatedParams,
   isTurnCompletedParams,
+  isTurnPlanUpdatedParams,
   isTurnStartResult
 } from "./protocol";
-import { AppServerClient } from "./client";
-import { createOutput, extractCanonicalOutput } from "./output";
-import {
-  mapRawThreadItem,
-  todoListFromPlan,
-  usageFromThreadTokenUsage,
-  zeroUsage,
-  type TodoListItem
-} from "./exec-events";
 
 type ServeArgs = {
   command: "serve";
@@ -31,10 +33,7 @@ type ServeArgs = {
   codexBin: string;
 };
 
-type ResumeArgs = {
-  command: "resume";
-  threadId: string;
-  prompt: string;
+type PromptArgsBase = {
   remote: string;
   authTokenEnv?: string;
   json: boolean;
@@ -42,7 +41,22 @@ type ResumeArgs = {
   codexBin: string;
 };
 
-type CliArgs = ServeArgs | ResumeArgs | { command: "help" };
+type StartArgs = PromptArgsBase & {
+  command: "start";
+  prompt: string;
+};
+
+type ResumeArgs = PromptArgsBase & {
+  command: "resume";
+  prompt: string;
+  threadId?: string;
+  last: boolean;
+};
+
+type PromptArgs = StartArgs | ResumeArgs;
+type CliArgs = ServeArgs | PromptArgs | { command: "help" };
+
+const DEFAULT_REMOTE = "ws://127.0.0.1:4501";
 
 export async function main(argv: string[]): Promise<number> {
   const parsed = parseArgs(argv);
@@ -72,7 +86,7 @@ export async function main(argv: string[]): Promise<number> {
 
   try {
     const exitCode = await Promise.race([
-      runResume(parsed, output, authToken).finally(() => {
+      runPromptCommand(parsed, output, authToken).finally(() => {
         client?.close();
       }),
       timeout
@@ -88,8 +102,8 @@ export async function main(argv: string[]): Promise<number> {
     return 1;
   }
 
-  async function runResume(
-    args: ResumeArgs,
+  async function runPromptCommand(
+    args: PromptArgs,
     sink: ReturnType<typeof createOutput>,
     token?: string
   ): Promise<number> {
@@ -102,19 +116,81 @@ export async function main(argv: string[]): Promise<number> {
     sink.info(`connected to ${args.remote}`);
     sink.info("initialized");
 
-    const resumeRaw = await client.request(WIRE.THREAD_RESUME, {
-      threadId: args.threadId
+    const threadId = await ensureTargetThread(args, sink);
+    return await runTurn(args, threadId, sink);
+  }
+
+  async function ensureTargetThread(
+    args: PromptArgs,
+    sink: ReturnType<typeof createOutput>
+  ): Promise<string> {
+    if (args.command === "start") {
+      const startRaw = await client!.request(WIRE.THREAD_START, {});
+      if (!isThreadStartResult(startRaw)) {
+        throw new Error("thread/start returned unexpected shape");
+      }
+      const threadId = startRaw.thread.id;
+      sink.info(`thread started: ${threadId}`);
+      if (args.json) {
+        sink.jsonEvent({ type: "thread.started", thread_id: threadId });
+      }
+      return threadId;
+    }
+
+    const resolvedThreadId = args.last ? await findMostRecentThreadId() : args.threadId;
+    if (!resolvedThreadId) {
+      throw new Error("resume --last found no recent thread");
+    }
+
+    const resumeRaw = await client!.request(WIRE.THREAD_RESUME, {
+      threadId: resolvedThreadId
     });
     if (!isThreadResumeResult(resumeRaw)) {
       throw new Error("thread/resume returned unexpected shape");
     }
-    sink.info(`thread resumed: ${resumeRaw.thread.id}`);
-    if (args.json) {
-      sink.jsonEvent({ type: "thread.started", thread_id: resumeRaw.thread.id });
-    }
 
-    const turnStartRaw = await client.request(WIRE.TURN_START, {
-      threadId: args.threadId,
+    const threadId = resumeRaw.thread.id;
+    sink.info(`thread resumed: ${threadId}`);
+    if (args.json) {
+      sink.jsonEvent({ type: "thread.started", thread_id: threadId });
+    }
+    return threadId;
+  }
+
+  async function findMostRecentThreadId(): Promise<string | null> {
+    let cursor: string | null | undefined = null;
+
+    while (true) {
+      const listRaw = await client!.request(WIRE.THREAD_LIST, {
+        cursor,
+        limit: 100,
+        sortKey: "updated_at",
+        archived: false
+      });
+
+      if (!isThreadListResult(listRaw)) {
+        throw new Error("thread/list returned unexpected shape");
+      }
+
+      const first = listRaw.data[0];
+      if (first?.id) {
+        return first.id;
+      }
+
+      if (!listRaw.nextCursor) {
+        return null;
+      }
+      cursor = listRaw.nextCursor;
+    }
+  }
+
+  async function runTurn(
+    args: PromptArgs,
+    threadId: string,
+    sink: ReturnType<typeof createOutput>
+  ): Promise<number> {
+    const turnStartRaw = await client!.request(WIRE.TURN_START, {
+      threadId,
       input: [{ type: "text", text: args.prompt, textElements: [] }]
     });
     if (!isTurnStartResult(turnStartRaw)) {
@@ -133,10 +209,10 @@ export async function main(argv: string[]): Promise<number> {
     let runningTodoList: TodoListItem | null = null;
 
     while (true) {
-      const event = await client.nextEvent();
+      const event = await client!.nextEvent();
 
       if (isServerRequest(event)) {
-        client.rejectServerRequest(
+        client!.rejectServerRequest(
           event.id,
           -32601,
           `codex-exec-remote: non-interactive mode, rejecting ${event.method}`
@@ -158,7 +234,7 @@ export async function main(argv: string[]): Promise<number> {
       const method = event.method;
       const params = event.params;
 
-      if (isObjectWithThreadId(params) && params.threadId !== args.threadId) {
+      if (isObjectWithThreadId(params) && params.threadId !== threadId) {
         continue;
       }
 
@@ -236,8 +312,8 @@ export async function main(argv: string[]): Promise<number> {
         }
 
         try {
-          const readRaw = await client.request(WIRE.THREAD_READ, {
-            threadId: args.threadId,
+          const readRaw = await client!.request(WIRE.THREAD_READ, {
+            threadId,
             includeTurns: true
           });
           if (!isThreadReadResult(readRaw)) {
@@ -254,7 +330,8 @@ export async function main(argv: string[]): Promise<number> {
           sink.warn(`thread/read failed: ${String(error)}`);
         }
 
-        const fallback = assistantMessages.length > 0 ? assistantMessages.join("\n") : deltaAccumulated;
+        const fallback =
+          assistantMessages.length > 0 ? assistantMessages.join("\n") : deltaAccumulated;
         sink.finalOutput(fallback);
         return 0;
       }
@@ -355,7 +432,7 @@ async function runServe(args: ServeArgs): Promise<number> {
 }
 
 export function parseArgs(argv: string[]): CliArgs {
-  if (argv.includes("--help") || argv.includes("-h") || argv.includes("help")) {
+  if (argv.includes("--help") || argv.includes("-h") || argv[0] === "help") {
     return { command: "help" };
   }
 
@@ -364,6 +441,12 @@ export function parseArgs(argv: string[]): CliArgs {
   }
 
   const [command, ...rest] = argv;
+  if (command === "serve") {
+    return parseServeArgs(rest);
+  }
+  if (command === "start") {
+    return parseStartArgs(rest);
+  }
   if (command === "resume") {
     return parseResumeArgs(rest);
   }
@@ -372,7 +455,7 @@ export function parseArgs(argv: string[]): CliArgs {
 }
 
 function parseServeArgs(tokens: string[]): ServeArgs {
-  let listen = "ws://127.0.0.1:4501";
+  let listen = DEFAULT_REMOTE;
   let codexBin = "codex";
 
   for (let index = 0; index < tokens.length; index += 1) {
@@ -391,8 +474,85 @@ function parseServeArgs(tokens: string[]): ServeArgs {
   return { command: "serve", listen, codexBin };
 }
 
+function parseStartArgs(tokens: string[]): StartArgs {
+  const shared = parsePromptFlags(tokens);
+  if (shared.positionals.length < 1) {
+    throw new Error("start requires <prompt>");
+  }
+
+  return {
+    command: "start",
+    prompt: shared.positionals.join(" ").trim(),
+    remote: shared.remote,
+    authTokenEnv: shared.authTokenEnv,
+    json: shared.json,
+    timeoutSec: shared.timeoutSec,
+    codexBin: shared.codexBin
+  };
+}
+
 function parseResumeArgs(tokens: string[]): ResumeArgs {
-  let remote = "ws://127.0.0.1:4501";
+  const shared = parsePromptFlags(tokens);
+  let last = false;
+  const positionals: string[] = [];
+
+  for (const token of shared.positionals) {
+    if (token === "--last") {
+      last = true;
+      continue;
+    }
+    positionals.push(token);
+  }
+
+  if (last) {
+    if (positionals.length < 1) {
+      throw new Error("resume --last requires <prompt>");
+    }
+    return {
+      command: "resume",
+      last: true,
+      threadId: undefined,
+      prompt: positionals.join(" ").trim(),
+      remote: shared.remote,
+      authTokenEnv: shared.authTokenEnv,
+      json: shared.json,
+      timeoutSec: shared.timeoutSec,
+      codexBin: shared.codexBin
+    };
+  }
+
+  if (positionals.length < 2) {
+    throw new Error("resume requires <thread-id> and <prompt>");
+  }
+
+  const [threadId, ...promptParts] = positionals;
+  const prompt = promptParts.join(" ").trim();
+  if (!threadId || !prompt) {
+    throw new Error("resume requires <thread-id> and <prompt>");
+  }
+
+  return {
+    command: "resume",
+    last: false,
+    threadId,
+    prompt,
+    remote: shared.remote,
+    authTokenEnv: shared.authTokenEnv,
+    json: shared.json,
+    timeoutSec: shared.timeoutSec,
+    codexBin: shared.codexBin
+  };
+}
+
+function parsePromptFlags(tokens: string[]): {
+  remote: string;
+  authTokenEnv?: string;
+  json: boolean;
+  timeoutSec: number;
+  codexBin: string;
+  positionals: string[];
+} {
+  let remote = DEFAULT_REMOTE;
   let authTokenEnv: string | undefined;
   let json = false;
   let timeoutSec = 300;
@@ -429,25 +589,13 @@ function parseResumeArgs(tokens: string[]): ResumeArgs {
     positionals.push(token);
   }
 
-  if (positionals.length < 2) {
-    throw new Error("resume requires <thread-id> and <prompt>");
-  }
-
-  const [threadId, ...promptParts] = positionals;
-  const prompt = promptParts.join(" ").trim();
-  if (!threadId || !prompt) {
-    throw new Error("resume requires <thread-id> and <prompt>");
-  }
-
   return {
-    command: "resume",
-    threadId,
-    prompt,
     remote,
     authTokenEnv,
     json,
     timeoutSec,
-    codexBin
+    codexBin,
+    positionals
   };
 }
 
@@ -464,7 +612,10 @@ function printUsage(): void {
     [
       "Usage:",
       "  codex-exec-remote [--listen ws://127.0.0.1:4501] [--codex-bin codex]",
-      "  codex-exec-remote resume <thread-id> \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]"
+      "  codex-exec-remote serve [--listen ws://127.0.0.1:4501] [--codex-bin codex]",
+      "  codex-exec-remote start \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]",
+      "  codex-exec-remote resume <thread-id> \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]",
+      "  codex-exec-remote resume --last \"<prompt>\" [--remote ws://127.0.0.1:4501] [--auth-token-env VAR] [--json] [--timeout 300] [--codex-bin codex]"
     ].join("\n") + "\n"
   );
 }

@@ -43,6 +43,24 @@ export interface ThreadResumeParams {
   threadId: string;
 }
 
+export interface ThreadStartParams {
+  model?: string | null;
+  modelProvider?: string | null;
+  cwd?: string | null;
+  approvalPolicy?: string | null;
+  sandbox?: string | null;
+  ephemeral?: boolean | null;
+}
+
+export interface ThreadListParams {
+  cursor?: string | null;
+  limit?: number | null;
+  sortKey?: string | null;
+  archived?: boolean | null;
+  cwd?: string | null;
+  searchTerm?: string | null;
+}
+
 export interface UserInputText {
   type: "text";
   text: string;
@@ -70,6 +88,18 @@ export interface ThreadResumeResult {
   model?: string;
   modelProvider?: string;
   cwd?: string;
+}
+
+export interface ThreadStartResult {
+  thread: { id: string; [key: string]: unknown };
+  model?: string;
+  modelProvider?: string;
+  cwd?: string;
+}
+
+export interface ThreadListResult {
+  data: Array<{ id: string; [key: string]: unknown }>;
+  nextCursor?: string | null;
 }
 
 export interface TurnStartResult {
@@ -182,7 +212,9 @@ export interface ErrorNotificationParams {
 
 export const WIRE = {
   INITIALIZED: "initialized",
+  THREAD_START: "thread/start",
   THREAD_RESUME: "thread/resume",
+  THREAD_LIST: "thread/list",
   THREAD_READ: "thread/read",
   THREAD_TOKEN_USAGE_UPDATED: "thread/tokenUsage/updated",
   TURN_START: "turn/start",
@@ -262,6 +294,23 @@ export function isThreadResumeResult(value: unknown): value is ThreadResumeResul
     isObject(value) &&
     isObject(value.thread) &&
     typeof value.thread.id === "string"
+  );
+}
+
+export function isThreadStartResult(value: unknown): value is ThreadStartResult {
+  return (
+    isObject(value) &&
+    isObject(value.thread) &&
+    typeof value.thread.id === "string"
+  );
+}
+
+export function isThreadListResult(value: unknown): value is ThreadListResult {
+  return (
+    isObject(value) &&
+    Array.isArray(value.data) &&
+    value.data.every((item) => isObject(item) && typeof item.id === "string") &&
+    (!("nextCursor" in value) || value.nextCursor === null || typeof value.nextCursor === "string")
   );
 }
 

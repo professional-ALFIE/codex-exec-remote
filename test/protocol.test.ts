@@ -25,6 +25,8 @@ describe("protocol", () => {
   });
 
   test("wire names are exact", () => {
+    expect(WIRE.THREAD_START).toBe("thread/start");
+    expect(WIRE.THREAD_LIST).toBe("thread/list");
     expect(WIRE.THREAD_TOKEN_USAGE_UPDATED).toBe("thread/tokenUsage/updated");
     expect(WIRE.TURN_PLAN_UPDATED).toBe("turn/plan/updated");
     expect(WIRE.AGENT_MESSAGE_DELTA).toBe("item/agentMessage/delta");
