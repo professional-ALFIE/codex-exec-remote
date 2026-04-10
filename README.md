@@ -5,24 +5,31 @@
 ## Usage
 
 ```bash
+# app-server 실행 (기본 ws://127.0.0.1:4501)
 codex-exec-remote
 
-codex-exec-remote --listen ws://127.0.0.1:4501
+# app-server 실행 (주소 지정)
+codex-exec-remote --listen ws://127.0.0.1:9999
 
-codex-exec-remote serve --listen ws://127.0.0.1:4501
+# 새 thread 생성
+codex-exec-remote start "hello"
 
-codex-exec-remote start "<prompt>" \
-  --remote ws://127.0.0.1:4501 \
-  --auth-token-env CODEX_AUTH_TOKEN
+# 기존 thread에 turn 추가
+codex-exec-remote resume <thread-id> "hello"
 
-codex-exec-remote resume <thread-id> "<prompt>" \
-  --remote ws://127.0.0.1:4501 \
-  --auth-token-env CODEX_AUTH_TOKEN
-
-codex-exec-remote resume --last "<prompt>" \
-  --remote ws://127.0.0.1:4501 \
-  --auth-token-env CODEX_AUTH_TOKEN
+# 가장 최근 thread에 turn 추가
+codex-exec-remote resume --last "hello"
 ```
+
+### Options (start / resume 공통)
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--remote <url>` | `ws://127.0.0.1:4501` | app-server 주소 |
+| `--auth-token-env <VAR>` | _(없음)_ | 환경변수에서 Bearer token 읽기 |
+| `--json` | `false` | stdout에 ThreadEvent JSONL 출력 |
+| `--timeout <sec>` | `300` | 최대 대기 시간 (초) |
+| `--codex-bin <path>` | `codex` | codex 바이너리 경로 |
 
 ## Development
 
