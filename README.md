@@ -7,6 +7,8 @@
 - [Releases](https://github.com/professional-ALFIE/codex-exec-remote/releases)
 - [한국어](./README.ko.md)
 
+> ⚠️ **Full permission mode.** `codex-exec-remote` auto-approves all server requests (command execution, file changes, etc.) — equivalent to running `codex --dangerously-bypass-approvals-and-sandbox exec --skip-git-repo-check`. Use with the same caution.
+
 ## Quick Start
 
 ### One-liner Installation
@@ -196,7 +198,7 @@ codex-exec-remote start "hello" --json
 - `start` creates a new thread via `thread/start`, then sends a turn.
 - `resume --last` uses `thread/list` sorted by `updated_at` to find the most recent thread.
 - `thread/read(includeTurns=true)` is the canonical source for the final assistant output.
-- Interactive server requests are rejected immediately (fail-fast).
+- All server requests (command execution, file changes, approvals) are **auto-approved** — equivalent to `codex --dangerously-bypass-approvals-and-sandbox exec --skip-git-repo-check`.
 - JSON mode emits `codex exec --json` compatible ThreadEvent JSONL (`thread.started`, `turn.started`, `item.started`, `item.completed`, `turn.completed`, etc.).
 
 ---

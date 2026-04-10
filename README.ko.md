@@ -7,6 +7,8 @@
 - [Releases](https://github.com/professional-ALFIE/codex-exec-remote/releases)
 - [English](./README.md)
 
+> ⚠️ **풀 권한 모드.** `codex-exec-remote`는 모든 서버 요청(명령 실행, 파일 변경 등)을 자동 승인합니다 — `codex --dangerously-bypass-approvals-and-sandbox exec --skip-git-repo-check`와 동일합니다. 같은 수준의 주의가 필요합니다.
+
 ## 빠른 시작
 
 ### 원라이너 설치
@@ -196,7 +198,7 @@ codex-exec-remote start "hello" --json
 - `start`는 `thread/start`로 새 thread를 만든 뒤 turn을 보냅니다.
 - `resume --last`는 `thread/list`에서 `updated_at` 기준으로 가장 최근 thread를 찾습니다.
 - `thread/read(includeTurns=true)`가 최종 assistant 출력의 canonical source입니다.
-- interactive server request는 즉시 reject합니다 (fail-fast).
+- 모든 서버 요청(명령 실행, 파일 변경, 승인)은 **자동 승인**됩니다 — `codex --dangerously-bypass-approvals-and-sandbox exec --skip-git-repo-check`와 동일합니다.
 - JSON 모드는 `codex exec --json` 호환 ThreadEvent JSONL을 출력합니다 (`thread.started`, `turn.started`, `item.started`, `item.completed`, `turn.completed` 등).
 
 ---
