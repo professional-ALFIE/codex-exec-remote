@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "codex-remote-exec",
+      "name": "codex-exec-remote",
       "dependencies": {
         "ws": "^8.18.3",
       },

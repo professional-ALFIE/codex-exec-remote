@@ -5,15 +5,25 @@ import {
   isAgentMessageDeltaParams,
   isErrorNotificationParams,
   isItemCompletedParams,
+  isItemStartedParams,
   isNotification,
   isServerRequest,
+  isThreadTokenUsageUpdatedParams,
   isThreadReadResult,
   isThreadResumeResult,
+  isTurnPlanUpdatedParams,
   isTurnCompletedParams,
   isTurnStartResult
 } from "./protocol";
 import { AppServerClient } from "./client";
 import { createOutput, extractCanonicalOutput } from "./output";
+import {
+  mapRawThreadItem,
+  todoListFromPlan,
+  usageFromThreadTokenUsage,
+  zeroUsage,
+  type TodoListItem
+} from "./exec-events";
 
 type ServeArgs = {
   command: "serve";
@@ -90,12 +100,7 @@ export async function main(argv: string[]): Promise<number> {
     });
 
     sink.info(`connected to ${args.remote}`);
-    if (args.json) {
-      sink.jsonEvent({ type: "connected", url: args.remote });
-      sink.jsonEvent({ type: "initialized" });
-    } else {
-      sink.info("initialized");
-    }
+    sink.info("initialized");
 
     const resumeRaw = await client.request(WIRE.THREAD_RESUME, {
       threadId: args.threadId
@@ -105,7 +110,7 @@ export async function main(argv: string[]): Promise<number> {
     }
     sink.info(`thread resumed: ${resumeRaw.thread.id}`);
     if (args.json) {
-      sink.jsonEvent({ type: "threadResumed", thread: resumeRaw.thread });
+      sink.jsonEvent({ type: "thread.started", thread_id: resumeRaw.thread.id });
     }
 
     const turnStartRaw = await client.request(WIRE.TURN_START, {
@@ -119,11 +124,13 @@ export async function main(argv: string[]): Promise<number> {
     const targetTurnId = turnStartRaw.turn.id;
     sink.info(`turn started: ${targetTurnId}`);
     if (args.json) {
-      sink.jsonEvent({ type: "turnStarted", turn: turnStartRaw.turn });
+      sink.jsonEvent({ type: "turn.started" });
     }
 
     const assistantMessages: string[] = [];
     let deltaAccumulated = "";
+    let lastUsage = zeroUsage();
+    let runningTodoList: TodoListItem | null = null;
 
     while (true) {
       const event = await client.nextEvent();
@@ -134,6 +141,12 @@ export async function main(argv: string[]): Promise<number> {
           -32601,
           `codex-exec-remote: non-interactive mode, rejecting ${event.method}`
         );
+        if (args.json) {
+          sink.jsonEvent({
+            type: "error",
+            message: `server request rejected: ${event.method}`
+          });
+        }
         sink.error(`server request rejected: ${event.method}`);
         return 1;
       }
@@ -149,6 +162,40 @@ export async function main(argv: string[]): Promise<number> {
         continue;
       }
 
+      if (method === WIRE.THREAD_TOKEN_USAGE_UPDATED) {
+        if (!isThreadTokenUsageUpdatedParams(params)) {
+          sink.warn("received malformed thread/tokenUsage/updated params; skipping");
+          continue;
+        }
+        if (params.turnId !== targetTurnId) {
+          continue;
+        }
+        lastUsage = usageFromThreadTokenUsage(params);
+        continue;
+      }
+
+      if (method === WIRE.TURN_PLAN_UPDATED) {
+        if (!isTurnPlanUpdatedParams(params)) {
+          sink.warn("received malformed turn/plan/updated params; skipping");
+          continue;
+        }
+        if (params.turnId !== targetTurnId) {
+          continue;
+        }
+
+        const hadTodoList = runningTodoList !== null;
+        const todoList = todoListFromPlan(targetTurnId, params);
+        runningTodoList = todoList;
+
+        if (args.json) {
+          sink.jsonEvent({
+            type: hadTodoList ? "item.updated" : "item.started",
+            item: todoList
+          });
+        }
+        continue;
+      }
+
       if (method === WIRE.TURN_COMPLETED) {
         if (!isTurnCompletedParams(params)) {
           sink.warn("received malformed turn/completed params; skipping");
@@ -159,14 +206,33 @@ export async function main(argv: string[]): Promise<number> {
         }
 
         sink.info(`turn completed (status: ${params.turn.status})`);
-        if (args.json) {
-          sink.jsonEvent({ type: "turnCompleted", turn: params.turn });
+
+        if (args.json && runningTodoList) {
+          sink.jsonEvent({
+            type: "item.completed",
+            item: runningTodoList
+          });
+          runningTodoList = null;
         }
 
         if (params.turn.status !== "completed") {
           const errMsg = params.turn.error?.message ?? params.turn.status;
+          if (args.json) {
+            sink.jsonEvent({
+              type: "turn.failed",
+              error: { message: errMsg }
+            });
+          }
           sink.error(`turn ${params.turn.status}: ${errMsg}`);
           return 1;
+        }
+
+        if (args.json) {
+          sink.jsonEvent({
+            type: "turn.completed",
+            usage: lastUsage
+          });
+          return 0;
         }
 
         try {
@@ -207,6 +273,12 @@ export async function main(argv: string[]): Promise<number> {
           continue;
         }
 
+        if (args.json) {
+          sink.jsonEvent({
+            type: "error",
+            message: params.error.message
+          });
+        }
         sink.error(`fatal error: ${params.error.message}`);
         return 1;
       }
@@ -216,23 +288,34 @@ export async function main(argv: string[]): Promise<number> {
       }
 
       switch (method) {
+        case WIRE.ITEM_STARTED: {
+          if (!isItemStartedParams(params)) {
+            sink.warn("received malformed item/started params; skipping");
+            break;
+          }
+          if (args.json) {
+            const mapped = mapRawThreadItem(params.item);
+            if (mapped) {
+              sink.jsonEvent({
+                type: "item.started",
+                item: mapped
+              });
+            }
+          }
+          break;
+        }
         case WIRE.AGENT_MESSAGE_DELTA: {
           if (!isAgentMessageDeltaParams(params)) {
             sink.warn("received malformed item/agentMessage/delta params; skipping");
             break;
           }
           deltaAccumulated += params.delta;
-          if (args.json) {
-            sink.jsonEvent({ type: "notification", method, params });
-          } else {
+          if (!args.json) {
             sink.streamDelta(params.delta);
           }
           break;
         }
         case WIRE.PLAN_DELTA:
-          if (args.json) {
-            sink.jsonEvent({ type: "notification", method, params });
-          }
           break;
         case WIRE.ITEM_COMPLETED: {
           if (!isItemCompletedParams(params)) {
@@ -244,7 +327,13 @@ export async function main(argv: string[]): Promise<number> {
             assistantMessages.push(item.text);
           }
           if (args.json) {
-            sink.jsonEvent({ type: "notification", method, params });
+            const mapped = mapRawThreadItem(item);
+            if (mapped) {
+              sink.jsonEvent({
+                type: "item.completed",
+                item: mapped
+              });
+            }
           }
           break;
         }

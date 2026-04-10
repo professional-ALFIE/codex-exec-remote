@@ -85,6 +85,19 @@ export interface ThreadItemBase {
   type: string;
   id?: string;
   text?: string;
+  summary?: unknown[];
+  content?: unknown[];
+  command?: string;
+  aggregatedOutput?: string | null;
+  exitCode?: number | null;
+  status?: string;
+  changes?: unknown[];
+  server?: string;
+  tool?: string;
+  arguments?: unknown;
+  result?: unknown;
+  error?: unknown;
+  query?: string;
 }
 
 export interface AgentMessageItem extends ThreadItemBase {
@@ -125,6 +138,36 @@ export interface ItemCompletedParams {
   item: ThreadItemBase;
 }
 
+export interface ItemStartedParams {
+  threadId: string;
+  turnId: string;
+  item: ThreadItemBase;
+}
+
+export interface TurnPlanStep {
+  step: string;
+  status: "pending" | "inProgress" | "completed";
+}
+
+export interface TurnPlanUpdatedParams {
+  threadId: string;
+  turnId: string;
+  explanation?: string | null;
+  plan: TurnPlanStep[];
+}
+
+export interface ThreadTokenUsageUpdatedParams {
+  threadId: string;
+  turnId: string;
+  tokenUsage: {
+    total: {
+      inputTokens: number;
+      cachedInputTokens: number;
+      outputTokens: number;
+    };
+  };
+}
+
 export interface TurnCompletedParams {
   threadId: string;
   turn: Turn;
@@ -141,9 +184,11 @@ export const WIRE = {
   INITIALIZED: "initialized",
   THREAD_RESUME: "thread/resume",
   THREAD_READ: "thread/read",
+  THREAD_TOKEN_USAGE_UPDATED: "thread/tokenUsage/updated",
   TURN_START: "turn/start",
   TURN_COMPLETED: "turn/completed",
   TURN_STARTED: "turn/started",
+  TURN_PLAN_UPDATED: "turn/plan/updated",
   ITEM_COMPLETED: "item/completed",
   ITEM_STARTED: "item/started",
   AGENT_MESSAGE_DELTA: "item/agentMessage/delta",
@@ -275,6 +320,46 @@ export function isItemCompletedParams(value: unknown): value is ItemCompletedPar
     typeof value.turnId === "string" &&
     isObject(value.item) &&
     typeof value.item.type === "string"
+  );
+}
+
+export function isItemStartedParams(value: unknown): value is ItemStartedParams {
+  return (
+    isObject(value) &&
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    isObject(value.item) &&
+    typeof value.item.type === "string"
+  );
+}
+
+export function isTurnPlanUpdatedParams(value: unknown): value is TurnPlanUpdatedParams {
+  return (
+    isObject(value) &&
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    Array.isArray(value.plan) &&
+    value.plan.every(
+      (step) =>
+        isObject(step) &&
+        typeof step.step === "string" &&
+        typeof step.status === "string"
+    )
+  );
+}
+
+export function isThreadTokenUsageUpdatedParams(
+  value: unknown
+): value is ThreadTokenUsageUpdatedParams {
+  return (
+    isObject(value) &&
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    isObject(value.tokenUsage) &&
+    isObject(value.tokenUsage.total) &&
+    typeof value.tokenUsage.total.inputTokens === "number" &&
+    typeof value.tokenUsage.total.cachedInputTokens === "number" &&
+    typeof value.tokenUsage.total.outputTokens === "number"
   );
 }
 

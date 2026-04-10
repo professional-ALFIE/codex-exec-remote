@@ -1,9 +1,5 @@
 import { isAgentMessageItem, type ThreadReadResult } from "./protocol";
-
-export interface NormalizedJsonEvent {
-  type: string;
-  [key: string]: unknown;
-}
+import type { ThreadEvent } from "./exec-events";
 
 export interface Output {
   info(msg: string): void;
@@ -11,7 +7,7 @@ export interface Output {
   warn(msg: string): void;
   error(msg: string): void;
   finalOutput(text: string): void;
-  jsonEvent(event: NormalizedJsonEvent): void;
+  jsonEvent(event: ThreadEvent): void;
 }
 
 export function createOutput(json: boolean): Output {
@@ -24,36 +20,22 @@ export function createOutput(json: boolean): Output {
 
   return {
     info(msg) {
-      if (json) {
-        writeStdout(JSON.stringify({ type: "info", message: msg }) + "\n");
-        return;
-      }
       writeStderr(`[codex-exec-remote] ${msg}\n`);
     },
     streamDelta(delta) {
       if (json) {
-        writeStdout(JSON.stringify({ type: "delta", delta }) + "\n");
         return;
       }
       writeStderr(delta);
     },
     warn(msg) {
-      if (json) {
-        writeStdout(JSON.stringify({ type: "warning", message: msg }) + "\n");
-        return;
-      }
       writeStderr(`[codex-exec-remote] ⚠ ${msg}\n`);
     },
     error(msg) {
-      if (json) {
-        writeStdout(JSON.stringify({ type: "error", message: msg }) + "\n");
-        return;
-      }
       writeStderr(`[codex-exec-remote] ✗ ${msg}\n`);
     },
     finalOutput(text) {
       if (json) {
-        writeStdout(JSON.stringify({ type: "finalOutput", text }) + "\n");
         return;
       }
       writeStdout(text);
