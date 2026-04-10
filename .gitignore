@@ -1,0 +1,3 @@
+node_modules/
+*.bun-build
+codex-exec-remote

@@ -1,0 +1,287 @@
+export interface JsonRpcRequest {
+  id: string;
+  method: string;
+  params?: Record<string, unknown> | null;
+}
+
+export interface JsonRpcNotification {
+  method: string;
+  params?: Record<string, unknown> | null;
+}
+
+export interface JsonRpcResponse {
+  id: string;
+  result: unknown;
+}
+
+export interface JsonRpcError {
+  id: string;
+  error: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+export type JsonRpcMessage =
+  | JsonRpcRequest
+  | JsonRpcNotification
+  | JsonRpcResponse
+  | JsonRpcError;
+
+export interface InitializeParams {
+  clientInfo: {
+    name: string;
+    version: string;
+  };
+  capabilities: {
+    experimentalApi: boolean;
+  };
+}
+
+export interface ThreadResumeParams {
+  threadId: string;
+}
+
+export interface UserInputText {
+  type: "text";
+  text: string;
+  textElements: [];
+}
+
+export interface TurnStartParams {
+  threadId: string;
+  input: UserInputText[];
+}
+
+export interface Turn {
+  id: string;
+  status: "completed" | "interrupted" | "failed" | "inProgress";
+  error?: {
+    message?: string;
+  };
+  startedAt?: number | null;
+  completedAt?: number | null;
+  durationMs?: number | null;
+}
+
+export interface ThreadResumeResult {
+  thread: { id: string; [key: string]: unknown };
+  model?: string;
+  modelProvider?: string;
+  cwd?: string;
+}
+
+export interface TurnStartResult {
+  turn: Turn;
+}
+
+export interface ThreadReadParams {
+  threadId: string;
+  includeTurns: boolean;
+}
+
+export interface ThreadItemBase {
+  type: string;
+  id?: string;
+  text?: string;
+}
+
+export interface AgentMessageItem extends ThreadItemBase {
+  type: "agentMessage";
+  text: string;
+}
+
+export interface ThreadTurn {
+  id: string;
+  items?: ThreadItemBase[];
+  status?: string;
+}
+
+export interface ThreadReadResult {
+  thread: {
+    id: string;
+    turns?: ThreadTurn[];
+  };
+}
+
+export interface AgentMessageDeltaParams {
+  threadId: string;
+  turnId: string;
+  itemId: string;
+  delta: string;
+}
+
+export interface PlanDeltaParams {
+  threadId: string;
+  turnId: string;
+  itemId: string;
+  delta: string;
+}
+
+export interface ItemCompletedParams {
+  threadId: string;
+  turnId: string;
+  item: ThreadItemBase;
+}
+
+export interface TurnCompletedParams {
+  threadId: string;
+  turn: Turn;
+}
+
+export interface ErrorNotificationParams {
+  error: { message: string };
+  willRetry: boolean;
+  threadId: string;
+  turnId: string;
+}
+
+export const WIRE = {
+  INITIALIZED: "initialized",
+  THREAD_RESUME: "thread/resume",
+  THREAD_READ: "thread/read",
+  TURN_START: "turn/start",
+  TURN_COMPLETED: "turn/completed",
+  TURN_STARTED: "turn/started",
+  ITEM_COMPLETED: "item/completed",
+  ITEM_STARTED: "item/started",
+  AGENT_MESSAGE_DELTA: "item/agentMessage/delta",
+  PLAN_DELTA: "item/plan/delta",
+  ERROR: "error",
+  COMMAND_EXEC_REQUEST_APPROVAL: "item/commandExecution/requestApproval",
+  FILE_CHANGE_REQUEST_APPROVAL: "item/fileChange/requestApproval",
+  TOOL_REQUEST_USER_INPUT: "item/tool/requestUserInput",
+  MCP_SERVER_ELICITATION_REQUEST: "mcpServer/elicitation/request",
+  PERMISSIONS_REQUEST_APPROVAL: "item/permissions/requestApproval",
+  DYNAMIC_TOOL_CALL: "item/tool/call",
+  CHATGPT_AUTH_TOKENS_REFRESH: "account/chatgptAuthTokens/refresh"
+} as const;
+
+export type WireMethod = (typeof WIRE)[keyof typeof WIRE];
+
+let nextIdValue = 1;
+
+export function nextRequestId(): string {
+  return String(nextIdValue++);
+}
+
+export function resetRequestIds(): void {
+  nextIdValue = 1;
+}
+
+export function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function isResponse(msg: unknown): msg is JsonRpcResponse {
+  return (
+    isObject(msg) &&
+    typeof msg.id === "string" &&
+    "result" in msg &&
+    !("method" in msg)
+  );
+}
+
+export function isError(msg: unknown): msg is JsonRpcError {
+  return (
+    isObject(msg) &&
+    typeof msg.id === "string" &&
+    isObject(msg.error) &&
+    typeof msg.error.code === "number" &&
+    typeof msg.error.message === "string" &&
+    !("method" in msg)
+  );
+}
+
+export function isNotification(msg: unknown): msg is JsonRpcNotification {
+  return (
+    isObject(msg) &&
+    typeof msg.method === "string" &&
+    !("id" in msg)
+  );
+}
+
+export function isServerRequest(msg: unknown): msg is JsonRpcRequest {
+  return (
+    isObject(msg) &&
+    typeof msg.id === "string" &&
+    typeof msg.method === "string" &&
+    !("result" in msg) &&
+    !("error" in msg)
+  );
+}
+
+export function isThreadResumeResult(value: unknown): value is ThreadResumeResult {
+  return (
+    isObject(value) &&
+    isObject(value.thread) &&
+    typeof value.thread.id === "string"
+  );
+}
+
+export function isTurnStartResult(value: unknown): value is TurnStartResult {
+  return (
+    isObject(value) &&
+    isObject(value.turn) &&
+    typeof value.turn.id === "string" &&
+    typeof value.turn.status === "string"
+  );
+}
+
+export function isThreadReadResult(value: unknown): value is ThreadReadResult {
+  return (
+    isObject(value) &&
+    isObject(value.thread) &&
+    typeof value.thread.id === "string"
+  );
+}
+
+export function isTurnCompletedParams(value: unknown): value is TurnCompletedParams {
+  return (
+    isObject(value) &&
+    typeof value.threadId === "string" &&
+    isObject(value.turn) &&
+    typeof value.turn.id === "string" &&
+    typeof value.turn.status === "string"
+  );
+}
+
+export function isErrorNotificationParams(value: unknown): value is ErrorNotificationParams {
+  return (
+    isObject(value) &&
+    isObject(value.error) &&
+    typeof value.error.message === "string" &&
+    typeof value.willRetry === "boolean" &&
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string"
+  );
+}
+
+export function isAgentMessageDeltaParams(value: unknown): value is AgentMessageDeltaParams {
+  return (
+    isObject(value) &&
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    typeof value.itemId === "string" &&
+    typeof value.delta === "string"
+  );
+}
+
+export function isItemCompletedParams(value: unknown): value is ItemCompletedParams {
+  return (
+    isObject(value) &&
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    isObject(value.item) &&
+    typeof value.item.type === "string"
+  );
+}
+
+export function isAgentMessageItem(item: unknown): item is AgentMessageItem {
+  return (
+    isObject(item) &&
+    item.type === "agentMessage" &&
+    typeof item.text === "string"
+  );
+}
