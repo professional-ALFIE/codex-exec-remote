@@ -82,7 +82,7 @@ curl -fsSL https://raw.githubusercontent.com/professional-ALFIE/codex-exec-remot
 - `~/.codex-exec-remote/source` 아래에 레포를 clone 또는 업데이트
 - `bun install`로 의존성 설치
 - `bun build --compile`로 단일 바이너리 컴파일
-- `~/.local/bin`에 `codex-exec-remote` 심볼릭 링크 생성
+- `~/bin`에 `codex-exec-remote`와 `cer` 심볼릭 링크 생성
 - `codex-exec-remote --help`로 설치 검증
 
 **필수:** macOS 또는 Linux, [Codex CLI](https://github.com/openai/codex) 설치, Git, [Bun](https://bun.sh)
@@ -104,38 +104,41 @@ git clone https://github.com/professional-ALFIE/codex-exec-remote.git ~/.codex-e
 cd ~/.codex-exec-remote/source
 bun install
 bun run build
-mkdir -p ~/.local/bin
-ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/.local/bin/codex-exec-remote
+mkdir -p ~/bin
+ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/codex-exec-remote
+ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/cer
 ```
 
-`~/.local/bin`이 `PATH`에 없으면 추가하세요:
+`~/bin`이 `PATH`에 없으면 추가하세요:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/bin:$PATH"
 ```
 
 ---
 
 ## 사용법
 
+> `cer`는 `codex-exec-remote`의 단축 alias입니다. 둘 다 동일하게 동작합니다.
+
 ```bash
 # app-server 실행 (기본 ws://127.0.0.1:4501)
-codex-exec-remote
+cer
 
 # app-server 실행 (주소 지정)
-codex-exec-remote --listen ws://127.0.0.1:9999
+cer --listen ws://127.0.0.1:9999
 
 # 새 thread 생성
-codex-exec-remote start "hello"
+cer start "hello"
 
 # 기존 thread에 turn 추가
-codex-exec-remote resume <thread-id> "hello"
+cer resume <thread-id> "hello"
 
-# 가장 최근 thread에 turn 추가
-codex-exec-remote resume --last "hello"
+# 가장 최근 thread에 turn 추가 (단축: -l)
+cer resume -l "hello"
 
-# JSON 출력 (ThreadEvent JSONL → stdout)
-codex-exec-remote start "hello" --json
+# JSON 출력 (단축: -j)
+cer start "hello" -j
 ```
 
 ---
@@ -155,7 +158,7 @@ codex-exec-remote start "hello" --json
 |------|--------|------|
 | `--remote <url>` | `ws://127.0.0.1:4501` | 연결할 app-server 주소 |
 | `--auth-token-env <VAR>` | _(없음)_ | 환경변수에서 Bearer token 읽기 |
-| `--json` | `false` | ThreadEvent JSONL을 stdout에 출력 |
+| `-j`, `--json` | `false` | ThreadEvent JSONL을 stdout에 출력 |
 | `--timeout <sec>` | `300` | 최대 대기 시간 (초) |
 | `--codex-bin <path>` | `codex` | codex 바이너리 경로 |
 
@@ -188,7 +191,7 @@ codex-exec-remote start "hello" --json
 5. `turn/completed` 시 `thread/read(includeTurns=true)`로 canonical assistant 응답 조회
 6. 최종 응답을 stdout에 출력하고 적절한 종료 코드로 종료
 
-**비대화형 전용.** 서버 요청(승인, 사용자 입력)이 오면 reject 후 exit 1로 종료합니다.
+**비대화형, 풀 권한.** 모든 서버 요청(명령 실행, 파일 변경)은 자동 승인됩니다.
 
 ---
 

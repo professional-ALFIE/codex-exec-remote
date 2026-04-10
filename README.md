@@ -82,7 +82,7 @@ What it does:
 - Clones or updates the repo under `~/.codex-exec-remote/source`
 - Installs dependencies with `bun install`
 - Compiles a single binary with `bun build --compile`
-- Links `codex-exec-remote` into `~/.local/bin`
+- Links `codex-exec-remote` and `cer` into `~/bin`
 - Verifies the install with `codex-exec-remote --help`
 
 **Required:** macOS or Linux, [Codex CLI](https://github.com/openai/codex) installed, Git, [Bun](https://bun.sh)
@@ -104,38 +104,41 @@ git clone https://github.com/professional-ALFIE/codex-exec-remote.git ~/.codex-e
 cd ~/.codex-exec-remote/source
 bun install
 bun run build
-mkdir -p ~/.local/bin
-ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/.local/bin/codex-exec-remote
+mkdir -p ~/bin
+ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/codex-exec-remote
+ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/cer
 ```
 
-If `~/.local/bin` is not on your `PATH`, add:
+If `~/bin` is not on your `PATH`, add:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/bin:$PATH"
 ```
 
 ---
 
 ## Usage
 
+> `cer` is a short alias for `codex-exec-remote`. Both work identically.
+
 ```bash
 # Launch app-server (default ws://127.0.0.1:4501)
-codex-exec-remote
+cer
 
 # Launch app-server on custom address
-codex-exec-remote --listen ws://127.0.0.1:9999
+cer --listen ws://127.0.0.1:9999
 
 # Start a new thread
-codex-exec-remote start "hello"
+cer start "hello"
 
 # Resume an existing thread
-codex-exec-remote resume <thread-id> "hello"
+cer resume <thread-id> "hello"
 
-# Resume the most recent thread
-codex-exec-remote resume --last "hello"
+# Resume the most recent thread (short: -l)
+cer resume -l "hello"
 
-# JSON output (ThreadEvent JSONL to stdout)
-codex-exec-remote start "hello" --json
+# JSON output (short: -j)
+cer start "hello" -j
 ```
 
 ---
@@ -155,7 +158,7 @@ codex-exec-remote start "hello" --json
 |--------|---------|-------------|
 | `--remote <url>` | `ws://127.0.0.1:4501` | App-server address to connect to |
 | `--auth-token-env <VAR>` | _(none)_ | Read Bearer token from this env var |
-| `--json` | `false` | Emit ThreadEvent JSONL to stdout |
+| `-j`, `--json` | `false` | Emit ThreadEvent JSONL to stdout |
 | `--timeout <sec>` | `300` | Max wait time in seconds |
 | `--codex-bin <path>` | `codex` | Path to codex binary |
 
@@ -188,7 +191,7 @@ codex-exec-remote start "hello" --json
 5. On `turn/completed`, reads `thread/read(includeTurns=true)` for the canonical assistant response
 6. Prints the final response to stdout; exits with appropriate code
 
-**Non-interactive only.** Any server request (approval, user input) is rejected with exit 1.
+**Non-interactive, full-permission.** All server requests (command execution, file changes) are auto-approved.
 
 ---
 
