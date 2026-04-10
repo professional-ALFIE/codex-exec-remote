@@ -105,6 +105,16 @@ export class AppServerClient {
     );
   }
 
+  approveServerRequest(requestId: string): void {
+    this.assertOpen();
+    this.ws.send(
+      JSON.stringify({
+        id: requestId,
+        result: { approved: true }
+      })
+    );
+  }
+
   close(): void {
     if (this.ws.readyState === WebSocket.CLOSING || this.ws.readyState === WebSocket.CLOSED) {
       return;

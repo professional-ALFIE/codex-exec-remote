@@ -212,19 +212,9 @@ export async function main(argv: string[]): Promise<number> {
       const event = await client!.nextEvent();
 
       if (isServerRequest(event)) {
-        client!.rejectServerRequest(
-          event.id,
-          -32601,
-          `codex-exec-remote: non-interactive mode, rejecting ${event.method}`
-        );
-        if (args.json) {
-          sink.jsonEvent({
-            type: "error",
-            message: `server request rejected: ${event.method}`
-          });
-        }
-        sink.error(`server request rejected: ${event.method}`);
-        return 1;
+        client!.approveServerRequest(event.id);
+        sink.info(`auto-approved server request: ${event.method}`);
+        continue;
       }
 
       if (!isNotification(event)) {
