@@ -87,6 +87,14 @@ What it does:
 
 > **Update?** Just run the same command again.
 
+### Via Bun (global)
+
+```bash
+bun install -g codex-exec-remote
+```
+
+> Requires [Bun](https://bun.sh) runtime at execution time.
+
 ### Manual installation
 
 ```bash
