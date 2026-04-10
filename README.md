@@ -123,22 +123,22 @@ export PATH="$HOME/bin:$PATH"
 
 ```bash
 # Launch app-server (default ws://127.0.0.1:4501)
-cer
+codex-exec-remote            # or: cer
 
 # Launch app-server on custom address
-cer --listen ws://127.0.0.1:9999
+codex-exec-remote --listen ws://127.0.0.1:9999
 
 # Start a new thread
-cer start "hello"
+codex-exec-remote start "hello"           # or: cer start "hello"
 
 # Resume an existing thread
-cer resume <thread-id> "hello"
+codex-exec-remote resume <thread-id> "hello"
 
-# Resume the most recent thread (short: -l)
-cer resume -l "hello"
+# Resume the most recent thread
+codex-exec-remote resume --last "hello"   # or: cer resume -l "hello"
 
-# JSON output (short: -j)
-cer start "hello" -j
+# JSON output (ThreadEvent JSONL → stdout)
+codex-exec-remote start "hello" --json    # or: cer start "hello" -j
 ```
 
 ---

@@ -123,22 +123,22 @@ export PATH="$HOME/bin:$PATH"
 
 ```bash
 # app-server 실행 (기본 ws://127.0.0.1:4501)
-cer
+codex-exec-remote            # 또는: cer
 
 # app-server 실행 (주소 지정)
-cer --listen ws://127.0.0.1:9999
+codex-exec-remote --listen ws://127.0.0.1:9999
 
 # 새 thread 생성
-cer start "hello"
+codex-exec-remote start "hello"           # 또는: cer start "hello"
 
 # 기존 thread에 turn 추가
-cer resume <thread-id> "hello"
+codex-exec-remote resume <thread-id> "hello"
 
-# 가장 최근 thread에 turn 추가 (단축: -l)
-cer resume -l "hello"
+# 가장 최근 thread에 turn 추가
+codex-exec-remote resume --last "hello"   # 또는: cer resume -l "hello"
 
-# JSON 출력 (단축: -j)
-cer start "hello" -j
+# JSON 출력 (ThreadEvent JSONL → stdout)
+codex-exec-remote start "hello" --json    # 또는: cer start "hello" -j
 ```
 
 ---
