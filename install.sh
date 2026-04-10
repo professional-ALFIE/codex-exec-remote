@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_URL="${CODEX_EXEC_REMOTE_REPO_URL:-https://github.com/professional-ALFIE/codex-exec-remote.git}"
 INSTALL_ROOT="${CODEX_EXEC_REMOTE_HOME:-$HOME/.codex-exec-remote}"
 SOURCE_DIR="${CODEX_EXEC_REMOTE_SOURCE_DIR:-$INSTALL_ROOT/source}"
-BIN_DIR="${CODEX_EXEC_REMOTE_BIN_DIR:-$HOME/.local/bin}"
+BIN_DIR="${CODEX_EXEC_REMOTE_BIN_DIR:-$HOME/bin}"
 BIN_NAME="codex-exec-remote"
 
 require_cmd() {
