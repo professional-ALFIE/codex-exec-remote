@@ -126,7 +126,7 @@ export PATH="$HOME/bin:$PATH"
 codex-exec-remote            # or: cer
 
 # Launch app-server on custom address
-codex-exec-remote --listen ws://127.0.0.1:9999
+codex-exec-remote --listen ws://127.0.0.1:9999  # or: cer --listen ws://127.0.0.1:9999
 
 # Start a new thread
 codex-exec-remote start "hello"           # or: cer start "hello"

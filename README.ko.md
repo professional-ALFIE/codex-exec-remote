@@ -126,7 +126,7 @@ export PATH="$HOME/bin:$PATH"
 codex-exec-remote            # 또는: cer
 
 # app-server 실행 (주소 지정)
-codex-exec-remote --listen ws://127.0.0.1:9999
+codex-exec-remote --listen ws://127.0.0.1:9999  # 또는: cer --listen ws://127.0.0.1:9999
 
 # 새 thread 생성
 codex-exec-remote start "hello"           # 또는: cer start "hello"
