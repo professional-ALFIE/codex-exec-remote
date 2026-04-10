@@ -493,7 +493,7 @@ function parseResumeArgs(tokens: string[]): ResumeArgs {
   const positionals: string[] = [];
 
   for (const token of shared.positionals) {
-    if (token === "--last") {
+    if (token === "--last" || token === "-l") {
       last = true;
       continue;
     }
@@ -574,7 +574,7 @@ function parsePromptFlags(tokens: string[]): {
       timeoutSec = parsed;
       continue;
     }
-    if (token === "--json") {
+    if (token === "--json" || token === "-j") {
       json = true;
       continue;
     }
@@ -604,12 +604,13 @@ function expectValue(tokens: string[], index: number, flag: string): string {
 }
 
 function printUsage(): void {
-  process.stdout.write(`codex-exec-remote — Remote execution bridge for Codex app-server
+  process.stdout.write(`codex-exec-remote (cer) — Remote execution bridge for Codex app-server
 
 ⚠️  Full permission mode. All server requests are auto-approved.
 
 Usage: codex-exec-remote [OPTIONS]
        codex-exec-remote <COMMAND> [ARGS]
+       cer <COMMAND> [ARGS]
 
 Commands:
   (default)                    Launch codex app-server (ws://127.0.0.1:4501)
@@ -628,20 +629,22 @@ Start / Resume Options:
   --remote <url>               App-server address to connect to
                                [default: ws://127.0.0.1:4501]
   --auth-token-env <VAR>       Read Bearer token from this env var
-  --json                       Emit ThreadEvent JSONL to stdout
+  -j, --json                   Emit ThreadEvent JSONL to stdout
   --timeout <sec>              Max wait time in seconds
                                [default: 300]
   --codex-bin <path>           Path to codex binary
                                [default: codex]
 
+Resume-specific:
+  -l, --last                   Resume the most recent thread
+
   -h, --help                   Print help
 
 Examples:
-  codex-exec-remote                          Launch app-server
-  codex-exec-remote --listen ws://0.0.0.0:9999
-  codex-exec-remote start "hello"            New thread
-  codex-exec-remote resume --last "continue" Resume last thread
-  codex-exec-remote start "hello" --json     JSONL output
+  cer                                        Launch app-server
+  cer start "hello"                          New thread
+  cer resume -l "continue"                   Resume last thread
+  cer start "hello" -j                       JSONL output
 `);
 }
 

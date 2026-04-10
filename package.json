@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "codex-exec-remote": "./src/index.ts"
+    "codex-exec-remote": "./src/index.ts",
+    "cer": "./src/index.ts"
   },
   "scripts": {
     "start": "bun run src/index.ts",

@@ -41,6 +41,7 @@ bun run build
 echo "[5/6] Linking executable..."
 mkdir -p "$BIN_DIR"
 ln -sf "$SOURCE_DIR/$BIN_NAME" "$BIN_DIR/$BIN_NAME"
+ln -sf "$SOURCE_DIR/$BIN_NAME" "$BIN_DIR/cer"
 
 echo "[6/6] Verifying installation..."
 "$BIN_DIR/$BIN_NAME" --help >/dev/null
