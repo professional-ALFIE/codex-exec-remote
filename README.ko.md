@@ -1,8 +1,120 @@
 # codex-exec-remote
 
-기본 동작은 `codex app-server --listen ...` 런처입니다. `start`는 새 thread를 만든 뒤 첫 turn을 보내고, `resume`은 기존 thread에 non-interactive turn을 넣습니다.
+> **터미널에서 Codex app-server 세션에 명령을 보내세요.**
+>
+> 기본 `codex exec`는 실행 중인 `codex app-server`에 연결할 수 없습니다. 이 도구는 됩니다.
 
-## Usage
+- [Releases](https://github.com/professional-ALFIE/codex-exec-remote/releases)
+- [English](./README.md)
+
+## 빠른 시작
+
+### 원라이너 설치
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/professional-ALFIE/codex-exec-remote/master/install.sh | bash
+```
+
+### 첫 실행
+
+```bash
+# 1. app-server 시작 (codex-exec-remote가 자동으로 실행)
+codex-exec-remote
+
+# 2. 다른 터미널에서 프롬프트 전송
+codex-exec-remote start "hello"
+```
+
+---
+
+## 왜 필요한가요?
+
+### `codex exec`는 app-server를 지원하지 않습니다
+
+`codex exec`는 로컬에서 일회성 프롬프트를 실행합니다. 실행 중인 `codex app-server`에 **연결할 수 없습니다** — `--remote` 없음, 세션 이어쓰기 없음, 멀티 클라이언트 동기화 없음.
+
+`codex-exec-remote`가 그 빈틈을 채웁니다:
+
+| | `codex exec` | `codex-exec-remote` |
+|---|---|---|
+| app-server 연결 | ✗ | ✓ |
+| 기존 thread 이어쓰기 | ✗ | ✓ (`resume`) |
+| 원격 새 thread 생성 | ✗ | ✓ (`start`) |
+| 멀티 클라이언트 세션 동기화 | ✗ | ✓ |
+| app-server 실행 | ✗ | ✓ (기본 모드) |
+| ThreadEvent JSONL 출력 | ✓ | ✓ (`--json`) |
+
+### 다른 에이전트에서 사용
+
+Claude Code, Antigravity, 또는 아무 CLI 에이전트에서 작업 중일 때:
+
+```bash
+codex-exec-remote start "이 모듈 리팩토링해"
+codex-exec-remote resume --last "이어서"
+```
+
+메인 에이전트는 본 작업에 집중하고, **Codex가 app-server를 통해 서브 작업을 처리합니다.**
+
+---
+
+## 뭘 하는 건가요?
+
+| 명령 | 효과 |
+|------|------|
+| `codex-exec-remote` | `codex app-server --listen ws://127.0.0.1:4501` **실행** |
+| `codex-exec-remote start "hello"` | 서버에 **새 thread** 생성, turn 전송, 응답 출력 |
+| `codex-exec-remote resume <id> "hello"` | 기존 thread **이어쓰기** |
+| `codex-exec-remote resume --last "hello"` | 가장 최근 thread **이어쓰기** |
+
+---
+
+## 설치
+
+### 원라이너
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/professional-ALFIE/codex-exec-remote/master/install.sh | bash
+```
+
+하는 일:
+- `~/.codex-exec-remote/source` 아래에 레포를 clone 또는 업데이트
+- `bun install`로 의존성 설치
+- `bun build --compile`로 단일 바이너리 컴파일
+- `~/.local/bin`에 `codex-exec-remote` 심볼릭 링크 생성
+- `codex-exec-remote --help`로 설치 검증
+
+**필수:** macOS 또는 Linux, [Codex CLI](https://github.com/openai/codex) 설치, Git, [Bun](https://bun.sh)
+
+> **업데이트?** 같은 명령을 다시 실행하면 됩니다.
+
+### Bun 글로벌 설치
+
+```bash
+bun install -g codex-exec-remote
+```
+
+> 실행 시 [Bun](https://bun.sh) 런타임이 필요합니다.
+
+### 수동 설치
+
+```bash
+git clone https://github.com/professional-ALFIE/codex-exec-remote.git ~/.codex-exec-remote/source
+cd ~/.codex-exec-remote/source
+bun install
+bun run build
+mkdir -p ~/.local/bin
+ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/.local/bin/codex-exec-remote
+```
+
+`~/.local/bin`이 `PATH`에 없으면 추가하세요:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+---
+
+## 사용법
 
 ```bash
 # app-server 실행 (기본 ws://127.0.0.1:4501)
@@ -19,37 +131,88 @@ codex-exec-remote resume <thread-id> "hello"
 
 # 가장 최근 thread에 turn 추가
 codex-exec-remote resume --last "hello"
+
+# JSON 출력 (ThreadEvent JSONL → stdout)
+codex-exec-remote start "hello" --json
 ```
 
-### Options (start / resume 공통)
+---
+
+## 옵션
+
+### Serve 모드
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--remote <url>` | `ws://127.0.0.1:4501` | app-server 주소 |
+| `--listen <url>` | `ws://127.0.0.1:4501` | `codex app-server` 주소 |
+| `--codex-bin <path>` | `codex` | codex 바이너리 경로 |
+
+### Start / Resume (공통)
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--remote <url>` | `ws://127.0.0.1:4501` | 연결할 app-server 주소 |
 | `--auth-token-env <VAR>` | _(없음)_ | 환경변수에서 Bearer token 읽기 |
-| `--json` | `false` | stdout에 ThreadEvent JSONL 출력 |
+| `--json` | `false` | ThreadEvent JSONL을 stdout에 출력 |
 | `--timeout <sec>` | `300` | 최대 대기 시간 (초) |
 | `--codex-bin <path>` | `codex` | codex 바이너리 경로 |
 
-## Development
+---
 
-```bash
-bun install
-bun test
-bun run src/index.ts
-bun run src/index.ts --listen ws://127.0.0.1:4501
-bun run src/index.ts serve --listen ws://127.0.0.1:4501
-bun run src/index.ts start "<prompt>" --remote ws://127.0.0.1:4501
-bun run src/index.ts resume <thread-id> "<prompt>" --remote ws://127.0.0.1:4501
-bun run src/index.ts resume --last "<prompt>" --remote ws://127.0.0.1:4501
+## 작동 원리
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 codex-exec-remote                    │
+│                                                     │
+│  argv → parseArgs → WebSocket 연결                   │
+│  → initialize 핸드셰이크                              │
+│  → thread/start 또는 thread/resume                   │
+│  → turn/start → 이벤트 루프 (notifications)           │
+│  → thread/read (canonical 출력) → stdout             │
+└──────────────────────┬──────────────────────────────┘
+                       │ JSON-RPC 2.0 over WebSocket
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│              codex app-server                        │
+│              (ws://127.0.0.1:4501)                   │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Notes
+1. WebSocket으로 `codex app-server`에 연결 (선택적 `Authorization` 헤더)
+2. JSON-RPC `initialize` / `initialized` 핸드셰이크 수행
+3. thread를 생성하거나 이어쓰기한 뒤, 사용자 프롬프트로 turn 시작
+4. `item/agentMessage/delta` notification을 stderr로 스트리밍 (human 모드)
+5. `turn/completed` 시 `thread/read(includeTurns=true)`로 canonical assistant 응답 조회
+6. 최종 응답을 stdout에 출력하고 적절한 종료 코드로 종료
 
-- 인자 없이 실행하면 `codex app-server --listen ws://127.0.0.1:4501`를 실행합니다.
-- `--listen <url>`만 주면 `codex app-server --listen <url>`를 실행합니다.
-- `serve`는 기본 실행과 같은 server launcher입니다.
-- `start`는 `thread/start` 후 `turn/start`를 호출합니다.
-- `resume --last`는 `thread/list`에서 가장 최근 thread를 찾은 뒤 `thread/resume`과 `turn/start`를 호출합니다.
-- `thread/read(includeTurns=true)`를 사용해 최종 assistant 결과를 canonical source로 읽습니다.
-- interactive server request를 받으면 reject 후 즉시 실패합니다.
+**비대화형 전용.** 서버 요청(승인, 사용자 입력)이 오면 reject 후 exit 1로 종료합니다.
+
+---
+
+## 참고
+
+- 기본 모드(서브커맨드 없음)는 `codex app-server`를 실행합니다.
+- `start`는 `thread/start`로 새 thread를 만든 뒤 turn을 보냅니다.
+- `resume --last`는 `thread/list`에서 `updated_at` 기준으로 가장 최근 thread를 찾습니다.
+- `thread/read(includeTurns=true)`가 최종 assistant 출력의 canonical source입니다.
+- interactive server request는 즉시 reject합니다 (fail-fast).
+- JSON 모드는 `codex exec --json` 호환 ThreadEvent JSONL을 출력합니다 (`thread.started`, `turn.started`, `item.started`, `item.completed`, `turn.completed` 등).
+
+---
+
+## Contributors
+
+이 프로젝트는 AI 에이전트와 함께 만들었습니다.
+
+| | 역할 |
+|---|------|
+| **[professional-ALFIE](https://github.com/professional-ALFIE)** | 설계, 디렉션, 검증 |
+| **[Antigravity](https://antigravity.google)** | 구현, 아키텍처 |
+| **[Codex](https://openai.com/codex)** | 구현, 코드 리뷰 |
+
+---
+
+## 라이선스
+
+MIT
