@@ -33,15 +33,15 @@ codex-exec-remote start "hello"
 
 ### `codex exec` doesn't support app-server
 
-`codex exec` runs a one-shot prompt locally. It **cannot** attach to a running `codex app-server` instance — no `--remote`, no session resume, no multi-client sync.
+`codex exec` runs a one-shot prompt locally. It **cannot** attach to a running `codex app-server` instance — no remote connection, no multi-client sync.
 
 `codex-exec-remote` fills that gap:
 
 | | `codex exec` | `codex-exec-remote` |
 |---|---|---|
-| Connect to app-server | ✗ | ✓ |
-| Resume existing thread | ✗ | ✓ (`resume`) |
-| Start new thread remotely | ✗ | ✓ (`start`) |
+| Connect to remote app-server | ✗ | ✓ |
+| Remote thread resume | ✗ | ✓ (`resume`) |
+| Start new thread on server | ✗ | ✓ (`start`) |
 | Multi-client session sync | ✗ | ✓ |
 | Launch app-server | ✗ | ✓ (default mode) |
 | ThreadEvent JSONL output | ✓ | ✓ (`--json`) |
@@ -63,7 +63,7 @@ Your main agent stays focused; **Codex handles sub-tasks via app-server.**
 
 | Command | Effect |
 |---------|--------|
-| `codex-exec-remote` | **Launch** `codex app-server --listen ws://127.0.0.1:4501` |
+| `codex-exec-remote` | **Launch** app-server in full-permission mode (`ws://127.0.0.1:4501`) |
 | `codex-exec-remote start "hello"` | **New thread** on the server, send a turn, print response |
 | `codex-exec-remote resume <id> "hello"` | **Resume** existing thread |
 | `codex-exec-remote resume --last "hello"` | **Resume** most recent thread |

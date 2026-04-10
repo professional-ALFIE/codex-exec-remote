@@ -33,15 +33,15 @@ codex-exec-remote start "hello"
 
 ### `codex exec`는 app-server를 지원하지 않습니다
 
-`codex exec`는 로컬에서 일회성 프롬프트를 실행합니다. 실행 중인 `codex app-server`에 **연결할 수 없습니다** — `--remote` 없음, 세션 이어쓰기 없음, 멀티 클라이언트 동기화 없음.
+`codex exec`는 로컬에서 일회성 프롬프트를 실행합니다. 실행 중인 `codex app-server`에 **연결할 수 없습니다** — 원격 연결 없음, 멀티 클라이언트 동기화 없음.
 
 `codex-exec-remote`가 그 빈틈을 채웁니다:
 
 | | `codex exec` | `codex-exec-remote` |
 |---|---|---|
-| app-server 연결 | ✗ | ✓ |
-| 기존 thread 이어쓰기 | ✗ | ✓ (`resume`) |
-| 원격 새 thread 생성 | ✗ | ✓ (`start`) |
+| 원격 app-server 연결 | ✗ | ✓ |
+| 원격 thread 이어쓰기 | ✗ | ✓ (`resume`) |
+| 서버에 새 thread 생성 | ✗ | ✓ (`start`) |
 | 멀티 클라이언트 세션 동기화 | ✗ | ✓ |
 | app-server 실행 | ✗ | ✓ (기본 모드) |
 | ThreadEvent JSONL 출력 | ✓ | ✓ (`--json`) |
@@ -63,7 +63,7 @@ codex-exec-remote resume --last "이어서"
 
 | 명령 | 효과 |
 |------|------|
-| `codex-exec-remote` | `codex app-server --listen ws://127.0.0.1:4501` **실행** |
+| `codex-exec-remote` | 풀 권한 모드로 app-server **실행** (`ws://127.0.0.1:4501`) |
 | `codex-exec-remote start "hello"` | 서버에 **새 thread** 생성, turn 전송, 응답 출력 |
 | `codex-exec-remote resume <id> "hello"` | 기존 thread **이어쓰기** |
 | `codex-exec-remote resume --last "hello"` | 가장 최근 thread **이어쓰기** |
