@@ -50,13 +50,37 @@ echo "Installed $BIN_NAME"
 echo "  source: $SOURCE_DIR"
 echo "  binary: $BIN_DIR/$BIN_NAME"
 
+PATH_LINE="export PATH=\"$BIN_DIR:\$PATH\""
+
 case ":$PATH:" in
   *":$BIN_DIR:"*)
     echo "  PATH: ok"
     ;;
   *)
-    echo
-    echo "Add this to your shell profile if needed:"
-    echo "  export PATH=\"$BIN_DIR:\$PATH\""
+    SHELL_NAME="$(basename "${SHELL:-/bin/zsh}")"
+    if [ "$SHELL_NAME" = "zsh" ]; then
+      PROFILE="$HOME/.zshrc"
+    elif [ "$SHELL_NAME" = "bash" ]; then
+      if [ -f "$HOME/.bash_profile" ]; then
+        PROFILE="$HOME/.bash_profile"
+      else
+        PROFILE="$HOME/.bashrc"
+      fi
+    else
+      PROFILE="$HOME/.profile"
+    fi
+
+    if ! grep -qF "$BIN_DIR" "$PROFILE" 2>/dev/null; then
+      echo "" >> "$PROFILE"
+      echo "# Added by codex-exec-remote installer" >> "$PROFILE"
+      echo "$PATH_LINE" >> "$PROFILE"
+      echo "  PATH: added to $PROFILE"
+    else
+      echo "  PATH: already in $PROFILE"
+    fi
+
+    export PATH="$BIN_DIR:$PATH"
+    echo "  PATH: active in current session"
     ;;
 esac
+
