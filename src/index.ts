@@ -413,7 +413,13 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function runServe(args: ServeArgs): Promise<number> {
-  const proc = Bun.spawn([args.codexBin, "app-server", "--listen", args.listen], {
+  const proc = Bun.spawn([
+    args.codexBin,
+    "--dangerously-bypass-approvals-and-sandbox",
+    "app-server",
+    "--listen",
+    args.listen
+  ], {
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit"
