@@ -22,9 +22,11 @@ mkdir -p "$INSTALL_ROOT"
 
 if [ -d "$SOURCE_DIR/.git" ]; then
   echo "[2/6] Updating existing source checkout..."
+  git -C "$SOURCE_DIR" remote set-url origin "$REPO_URL"
   git -C "$SOURCE_DIR" fetch --tags origin
-  git -C "$SOURCE_DIR" checkout master >/dev/null 2>&1 || true
-  git -C "$SOURCE_DIR" pull --ff-only origin master
+  git -C "$SOURCE_DIR" checkout -B master origin/master
+  git -C "$SOURCE_DIR" reset --hard origin/master
+  git -C "$SOURCE_DIR" clean -fd
 else
   echo "[2/6] Cloning source..."
   rm -rf "$SOURCE_DIR"
