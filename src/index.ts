@@ -385,6 +385,7 @@ export async function main(argv: string[]): Promise<number> {
           break;
         }
         case WIRE.PLAN_DELTA:
+        case WIRE.REASONING_SUMMARY_DELTA:
           break;
         case WIRE.ITEM_COMPLETED: {
           if (!isItemCompletedParams(params)) {

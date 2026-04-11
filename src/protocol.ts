@@ -225,6 +225,7 @@ export const WIRE = {
   ITEM_STARTED: "item/started",
   AGENT_MESSAGE_DELTA: "item/agentMessage/delta",
   PLAN_DELTA: "item/plan/delta",
+  REASONING_SUMMARY_DELTA: "item/reasoning/summaryTextDelta",
   ERROR: "error",
   COMMAND_EXEC_REQUEST_APPROVAL: "item/commandExecution/requestApproval",
   FILE_CHANGE_REQUEST_APPROVAL: "item/fileChange/requestApproval",

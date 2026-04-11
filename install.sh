@@ -52,33 +52,39 @@ echo "  source: $SOURCE_DIR"
 echo "  binary: $BIN_DIR/$BIN_NAME"
 
 PATH_LINE="export PATH=\"$BIN_DIR:\$PATH\""
+MARKER="# Added by codex-exec-remote installer"
+
+add_to_profile() {
+  local profile="$1"
+  if [ ! -f "$profile" ]; then
+    return
+  fi
+  if grep -qF "$BIN_DIR" "$profile" 2>/dev/null; then
+    echo "  PATH: already in $profile"
+    return
+  fi
+  echo "" >> "$profile"
+  echo "$MARKER" >> "$profile"
+  echo "$PATH_LINE" >> "$profile"
+  echo "  PATH: added to $profile"
+}
 
 case ":$PATH:" in
   *":$BIN_DIR:"*)
     echo "  PATH: ok"
     ;;
   *)
+    # Ensure profiles exist for the current shell at minimum
     SHELL_NAME="$(basename "${SHELL:-/bin/zsh}")"
     if [ "$SHELL_NAME" = "zsh" ]; then
-      PROFILE="$HOME/.zshrc"
-    elif [ "$SHELL_NAME" = "bash" ]; then
-      if [ -f "$HOME/.bash_profile" ]; then
-        PROFILE="$HOME/.bash_profile"
-      else
-        PROFILE="$HOME/.bashrc"
-      fi
-    else
-      PROFILE="$HOME/.profile"
+      touch "$HOME/.zshrc"
     fi
 
-    if ! grep -qF "$BIN_DIR" "$PROFILE" 2>/dev/null; then
-      echo "" >> "$PROFILE"
-      echo "# Added by codex-exec-remote installer" >> "$PROFILE"
-      echo "$PATH_LINE" >> "$PROFILE"
-      echo "  PATH: added to $PROFILE"
-    else
-      echo "  PATH: already in $PROFILE"
-    fi
+    # Add to all common shell profiles that exist
+    add_to_profile "$HOME/.zshrc"
+    add_to_profile "$HOME/.bashrc"
+    add_to_profile "$HOME/.bash_profile"
+    add_to_profile "$HOME/.profile"
 
     export PATH="$BIN_DIR:$PATH"
     echo "  PATH: active in current session"
