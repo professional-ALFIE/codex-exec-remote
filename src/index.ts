@@ -28,6 +28,16 @@ import {
   isTurnStartResult
 } from "./protocol";
 
+const STDIN_PROMPT_MARKER = "-";
+
+async function readStdinText(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf-8").trim();
+}
+
 type ServeArgs = {
   command: "serve";
   listen: string;
@@ -69,6 +79,16 @@ export async function main(argv: string[]): Promise<number> {
 
   if (parsed.command === "serve") {
     return await runServe(parsed);
+  }
+
+  // Resolve stdin prompt: explicit "-" or auto-detected piped stdin
+  if (parsed.prompt === STDIN_PROMPT_MARKER) {
+    const stdinText = await readStdinText();
+    if (!stdinText) {
+      process.stderr.write("[codex-exec-remote] ✗ stdin was empty\n");
+      return 2;
+    }
+    parsed.prompt = stdinText;
   }
 
   const output = createOutput(parsed.json);
@@ -475,13 +495,17 @@ function parseServeArgs(tokens: string[]): ServeArgs {
 
 function parseStartArgs(tokens: string[]): StartArgs {
   const shared = parsePromptFlags(tokens);
-  if (shared.positionals.length < 1) {
-    throw new Error("start requires <prompt>");
+  const prompt = shared.positionals.length > 0
+    ? shared.positionals.join(" ").trim()
+    : (!process.stdin.isTTY ? STDIN_PROMPT_MARKER : null);
+
+  if (!prompt) {
+    throw new Error("start requires <prompt> (or pipe via stdin)");
   }
 
   return {
     command: "start",
-    prompt: shared.positionals.join(" ").trim(),
+    prompt,
     remote: shared.remote,
     authTokenEnv: shared.authTokenEnv,
     json: shared.json,
@@ -504,14 +528,18 @@ function parseResumeArgs(tokens: string[]): ResumeArgs {
   }
 
   if (last) {
-    if (positionals.length < 1) {
-      throw new Error("resume --last requires <prompt>");
+    const prompt = positionals.length > 0
+      ? positionals.join(" ").trim()
+      : (!process.stdin.isTTY ? STDIN_PROMPT_MARKER : null);
+
+    if (!prompt) {
+      throw new Error("resume --last requires <prompt> (or pipe via stdin)");
     }
     return {
       command: "resume",
       last: true,
       threadId: undefined,
-      prompt: positionals.join(" ").trim(),
+      prompt,
       remote: shared.remote,
       authTokenEnv: shared.authTokenEnv,
       json: shared.json,
@@ -520,14 +548,17 @@ function parseResumeArgs(tokens: string[]): ResumeArgs {
     };
   }
 
-  if (positionals.length < 2) {
-    throw new Error("resume requires <thread-id> and <prompt>");
+  if (positionals.length < 1) {
+    throw new Error("resume requires <thread-id> and <prompt> (or pipe prompt via stdin)");
   }
 
   const [threadId, ...promptParts] = positionals;
-  const prompt = promptParts.join(" ").trim();
+  const prompt = promptParts.length > 0
+    ? promptParts.join(" ").trim()
+    : (!process.stdin.isTTY ? STDIN_PROMPT_MARKER : null);
+
   if (!threadId || !prompt) {
-    throw new Error("resume requires <thread-id> and <prompt>");
+    throw new Error("resume requires <thread-id> and <prompt> (or pipe prompt via stdin)");
   }
 
   return {
@@ -643,11 +674,22 @@ Resume-specific:
 
   -h, --help                   Print help
 
+Stdin Support:
+  Pipe prompt via stdin to avoid shell escaping issues:
+    echo "hello" | cer start
+    cat prompt.txt | cer resume <id>
+    cat prompt.txt | cer resume -l
+  Or use "-" as explicit stdin marker:
+    cer start -
+    cer resume <id> -
+
 Examples:
   cer                                        Launch app-server
   cer start "hello"                          New thread
   cer resume -l "continue"                   Resume last thread
   cer start "hello" -j                       JSONL output
+  echo "complex prompt" | cer start          Stdin prompt
+  cat prompt.txt | cer resume <id>           File-based prompt
 `);
 }
 

@@ -38,6 +38,18 @@ describe("index cli parsing", () => {
     });
   });
 
+  test("start with explicit stdin marker", () => {
+    expect(parseArgs(["start", "-"])).toEqual({
+      command: "start",
+      prompt: "-",
+      remote: "ws://127.0.0.1:4501",
+      authTokenEnv: undefined,
+      json: false,
+      timeoutSec: 300,
+      codexBin: "codex"
+    });
+  });
+
   test("resume uses --remote option", () => {
     expect(
       parseArgs(["resume", "thread-1", "hello world", "--remote", "ws://127.0.0.1:7777"])
@@ -54,12 +66,40 @@ describe("index cli parsing", () => {
     });
   });
 
+  test("resume with explicit stdin marker", () => {
+    expect(parseArgs(["resume", "thread-1", "-"])).toEqual({
+      command: "resume",
+      last: false,
+      threadId: "thread-1",
+      prompt: "-",
+      remote: "ws://127.0.0.1:4501",
+      authTokenEnv: undefined,
+      json: false,
+      timeoutSec: 300,
+      codexBin: "codex"
+    });
+  });
+
   test("resume --last treats positional as prompt", () => {
     expect(parseArgs(["resume", "--last", "hello world"])).toEqual({
       command: "resume",
       last: true,
       threadId: undefined,
       prompt: "hello world",
+      remote: "ws://127.0.0.1:4501",
+      authTokenEnv: undefined,
+      json: false,
+      timeoutSec: 300,
+      codexBin: "codex"
+    });
+  });
+
+  test("resume --last with explicit stdin marker", () => {
+    expect(parseArgs(["resume", "--last", "-"])).toEqual({
+      command: "resume",
+      last: true,
+      threadId: undefined,
+      prompt: "-",
       remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
