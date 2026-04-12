@@ -82,12 +82,16 @@ What it does:
 - Clones or updates the repo under `~/.codex-exec-remote/source`
 - Installs dependencies with `bun install`
 - Compiles a single binary with `bun build --compile`
-- Links `codex-exec-remote` and `cer` into `~/bin`
-- Verifies the install with `codex-exec-remote --help`
+- Copies the compiled binary into `~/.codex-exec-remote/runtime`
+- Installs `codex-exec-remote` and `cer` launchers into the first writable absolute directory on the default noninteractive `bash -c` `PATH` (typically `/usr/local/bin`)
+- Records the current `codex` absolute path so plain `cer` can still launch `codex app-server` in a clean shell
+- Verifies `cer --help` and `codex-exec-remote --help` inside `env -i HOME="$HOME" /bin/bash -c`
 
 **Required:** macOS or Linux, [Codex CLI](https://github.com/openai/codex) installed, Git, [Bun](https://bun.sh)
 
 > **Update?** Just run the same command again.
+>
+> **Need a custom launcher directory?** Set `CODEX_EXEC_REMOTE_BIN_DIR=/path` before running the installer. If that directory is not on the default noninteractive `PATH`, the installer falls back to shell profile updates for interactive use.
 
 ### Via Bun (global)
 
@@ -102,17 +106,34 @@ bun install -g codex-exec-remote
 ```bash
 git clone https://github.com/professional-ALFIE/codex-exec-remote.git ~/.codex-exec-remote/source
 cd ~/.codex-exec-remote/source
-bun install
+bun install --frozen-lockfile || bun install
 bun run build
-mkdir -p ~/bin
-ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/codex-exec-remote
-ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/cer
+
+CODEX_BIN="$(command -v codex)"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+CODEX_BIN_DIR="$(dirname "$CODEX_BIN")"
+
+mkdir -p ~/.codex-exec-remote/runtime /usr/local/bin
+cp codex-exec-remote ~/.codex-exec-remote/runtime/codex-exec-remote
+
+cat > /usr/local/bin/codex-exec-remote <<EOF
+#!/bin/sh
+set -eu
+PATH='$NODE_BIN_DIR:$CODEX_BIN_DIR':\$PATH
+export PATH
+: \${CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN:='$CODEX_BIN'}
+export CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN
+exec '$HOME/.codex-exec-remote/runtime/codex-exec-remote' "\$@"
+EOF
+
+chmod +x /usr/local/bin/codex-exec-remote
+ln -sfn codex-exec-remote /usr/local/bin/cer
 ```
 
-If `~/bin` is not on your `PATH`, add:
+Verify the launchers in a clean noninteractive shell:
 
 ```bash
-export PATH="$HOME/bin:$PATH"
+env -i HOME="$HOME" /bin/bash -c 'PATH="/usr/local/bin:/bin:/usr/bin"; cer --help >/dev/null && codex-exec-remote --help >/dev/null'
 ```
 
 ---

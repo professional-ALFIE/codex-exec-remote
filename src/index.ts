@@ -29,6 +29,7 @@ import {
 } from "./protocol";
 
 const STDIN_PROMPT_MARKER = "-";
+const DEFAULT_CODEX_BIN_ENV = "CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN";
 
 async function readStdinText(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -69,6 +70,15 @@ type CliArgs = ServeArgs | PromptArgs | { command: "help" };
 
 const DEFAULT_REMOTE = "ws://127.0.0.1:4501";
 const SELF_EXECUTABLE_NAMES = new Set(["codex-exec-remote", "cer"]);
+
+function getDefaultCodexBin(): string {
+  const configured = process.env[DEFAULT_CODEX_BIN_ENV]?.trim();
+  return configured ? configured : "codex";
+}
+
+function getDefaultCodexBinLabel(): string {
+  return `$${DEFAULT_CODEX_BIN_ENV} or codex`;
+}
 
 export async function main(argv: string[]): Promise<number> {
   const parsed = parseArgs(argv);
@@ -475,7 +485,7 @@ export function parseArgs(argv: string[]): CliArgs {
 
 function parseServeArgs(tokens: string[]): ServeArgs {
   let listen = DEFAULT_REMOTE;
-  let codexBin = "codex";
+  let codexBin = getDefaultCodexBin();
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -586,7 +596,7 @@ function parsePromptFlags(tokens: string[]): {
   let authTokenEnv: string | undefined;
   let json = false;
   let timeoutSec = 300;
-  let codexBin = "codex";
+  let codexBin = getDefaultCodexBin();
   const positionals: string[] = [];
 
   for (let index = 0; index < tokens.length; index += 1) {
@@ -657,7 +667,7 @@ Serve Options:
   --listen <url>               App-server listen address
                                [default: ws://127.0.0.1:4501]
   --codex-bin <path>           Path to codex binary
-                               [default: codex]
+                               [default: ${getDefaultCodexBinLabel()}]
 
 Start / Resume Options:
   --remote <url>               App-server address to connect to
@@ -667,7 +677,7 @@ Start / Resume Options:
   --timeout <sec>              Max wait time in seconds
                                [default: 300]
   --codex-bin <path>           Path to codex binary
-                               [default: codex]
+                               [default: ${getDefaultCodexBinLabel()}]
 
 Resume-specific:
   -l, --last                   Resume the most recent thread

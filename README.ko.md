@@ -82,12 +82,16 @@ curl -fsSL https://raw.githubusercontent.com/professional-ALFIE/codex-exec-remot
 - `~/.codex-exec-remote/source` 아래에 레포를 clone 또는 업데이트
 - `bun install`로 의존성 설치
 - `bun build --compile`로 단일 바이너리 컴파일
-- `~/bin`에 `codex-exec-remote`와 `cer` 심볼릭 링크 생성
-- `codex-exec-remote --help`로 설치 검증
+- 컴파일된 바이너리를 `~/.codex-exec-remote/runtime` 아래에 복사
+- 기본 noninteractive `bash -c` `PATH`에 들어 있는 첫 writable 절대경로 디렉터리(보통 `/usr/local/bin`)에 `codex-exec-remote`와 `cer` launcher 설치
+- 현재 `codex` 절대경로를 기록해서 clean shell에서도 plain `cer`가 `codex app-server`를 실행할 수 있게 구성
+- `env -i HOME="$HOME" /bin/bash -c` 안에서 `cer --help`와 `codex-exec-remote --help`로 설치 검증
 
 **필수:** macOS 또는 Linux, [Codex CLI](https://github.com/openai/codex) 설치, Git, [Bun](https://bun.sh)
 
 > **업데이트?** 같은 명령을 다시 실행하면 됩니다.
+>
+> **launcher 디렉터리를 직접 고르고 싶다면?** 설치 전에 `CODEX_EXEC_REMOTE_BIN_DIR=/path`를 지정하세요. 그 디렉터리가 기본 noninteractive `PATH`에 없으면 installer는 interactive shell용 profile 업데이트로만 fallback합니다.
 
 ### Bun 글로벌 설치
 
@@ -102,17 +106,34 @@ bun install -g codex-exec-remote
 ```bash
 git clone https://github.com/professional-ALFIE/codex-exec-remote.git ~/.codex-exec-remote/source
 cd ~/.codex-exec-remote/source
-bun install
+bun install --frozen-lockfile || bun install
 bun run build
-mkdir -p ~/bin
-ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/codex-exec-remote
-ln -sf ~/.codex-exec-remote/source/codex-exec-remote ~/bin/cer
+
+CODEX_BIN="$(command -v codex)"
+NODE_BIN_DIR="$(dirname "$(command -v node)")"
+CODEX_BIN_DIR="$(dirname "$CODEX_BIN")"
+
+mkdir -p ~/.codex-exec-remote/runtime /usr/local/bin
+cp codex-exec-remote ~/.codex-exec-remote/runtime/codex-exec-remote
+
+cat > /usr/local/bin/codex-exec-remote <<EOF
+#!/bin/sh
+set -eu
+PATH='$NODE_BIN_DIR:$CODEX_BIN_DIR':\$PATH
+export PATH
+: \${CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN:='$CODEX_BIN'}
+export CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN
+exec '$HOME/.codex-exec-remote/runtime/codex-exec-remote' "\$@"
+EOF
+
+chmod +x /usr/local/bin/codex-exec-remote
+ln -sfn codex-exec-remote /usr/local/bin/cer
 ```
 
-`~/bin`이 `PATH`에 없으면 추가하세요:
+clean noninteractive shell에서도 launcher가 보이는지 확인:
 
 ```bash
-export PATH="$HOME/bin:$PATH"
+env -i HOME="$HOME" /bin/bash -c 'PATH="/usr/local/bin:/bin:/usr/bin"; cer --help >/dev/null && codex-exec-remote --help >/dev/null'
 ```
 
 ---

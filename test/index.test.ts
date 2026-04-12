@@ -1,6 +1,25 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeCompiledCliArgv, parseArgs } from "../src/index";
 
+function withDefaultCodexBin<T>(value: string | undefined, fn: () => T): T {
+  const original = process.env.CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN;
+  if (value === undefined) {
+    delete process.env.CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN;
+  } else {
+    process.env.CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN = value;
+  }
+
+  try {
+    return fn();
+  } finally {
+    if (original === undefined) {
+      delete process.env.CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN;
+    } else {
+      process.env.CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN = original;
+    }
+  }
+}
+
 describe("index cli parsing", () => {
   test("no args means serve mode with default listen", () => {
     expect(parseArgs([])).toEqual({
@@ -130,5 +149,41 @@ describe("index cli parsing", () => {
     expect(
       normalizeCompiledCliArgv(["bun", "/$bunfs/root/codex-exec-remote", "--listen"])
     ).toEqual(["--listen"]);
+  });
+
+  test("serve defaults codex binary from installer env when present", () => {
+    withDefaultCodexBin("/opt/codex/bin/codex", () => {
+      expect(parseArgs([])).toEqual({
+        command: "serve",
+        listen: "ws://127.0.0.1:4501",
+        codexBin: "/opt/codex/bin/codex"
+      });
+    });
+  });
+
+  test("start and resume inherit installer-provided default codex binary", () => {
+    withDefaultCodexBin("/opt/codex/bin/codex", () => {
+      expect(parseArgs(["start", "hello"])).toEqual({
+        command: "start",
+        prompt: "hello",
+        remote: "ws://127.0.0.1:4501",
+        authTokenEnv: undefined,
+        json: false,
+        timeoutSec: 300,
+        codexBin: "/opt/codex/bin/codex"
+      });
+
+      expect(parseArgs(["resume", "--last", "hello"])).toEqual({
+        command: "resume",
+        last: true,
+        threadId: undefined,
+        prompt: "hello",
+        remote: "ws://127.0.0.1:4501",
+        authTokenEnv: undefined,
+        json: false,
+        timeoutSec: 300,
+        codexBin: "/opt/codex/bin/codex"
+      });
+    });
   });
 });
