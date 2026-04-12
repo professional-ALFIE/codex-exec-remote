@@ -83,15 +83,17 @@ What it does:
 - Installs dependencies with `bun install`
 - Compiles a single binary with `bun build --compile`
 - Copies the compiled binary into `~/.codex-exec-remote/runtime`
-- Installs `codex-exec-remote` and `cer` launchers into the first writable absolute directory on the default noninteractive `bash -c` `PATH` (typically `/usr/local/bin`)
-- Records the current `codex` absolute path so plain `cer` can still launch `codex app-server` in a clean shell
-- Verifies `cer --help` and `codex-exec-remote --help` inside `env -i HOME="$HOME" /bin/bash -c`
+- Installs `codex-exec-remote` and `cer` launchers into the first writable absolute directory on the default noninteractive `bash -c` `PATH` (typically `/usr/local/bin`), ignoring relative PATH entries such as `.` or `./bin`
+- Records the current `codex` absolute path via `CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN` so plain `cer` can still launch `codex app-server` in a clean shell
+- Verifies `cer --help` and `codex-exec-remote --help` inside `env -i HOME="$HOME" /bin/bash -c`, and also verifies that the recorded `codex` binary can execute `app-server --help`
 
 **Required:** macOS or Linux, [Codex CLI](https://github.com/openai/codex) installed, Git, [Bun](https://bun.sh)
 
 > **Update?** Just run the same command again.
 >
 > **Need a custom launcher directory?** Set `CODEX_EXEC_REMOTE_BIN_DIR=/path` before running the installer. If that directory is not on the default noninteractive `PATH`, the installer falls back to shell profile updates for interactive use.
+>
+> **Need to override the recorded codex binary later?** Launch with `CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN=/absolute/path/to/codex` to override the installer-pinned default.
 
 ### Via Bun (global)
 
@@ -130,11 +132,15 @@ chmod +x /usr/local/bin/codex-exec-remote
 ln -sfn codex-exec-remote /usr/local/bin/cer
 ```
 
+Use a writable absolute directory from your clean noninteractive `PATH` in place of `/usr/local/bin` if your environment differs. Relative PATH entries such as `.` or `./bin` are ignored for automatic launcher placement.
+
 Verify the launchers in a clean noninteractive shell:
 
 ```bash
 env -i HOME="$HOME" /bin/bash -c 'PATH="/usr/local/bin:/bin:/usr/bin"; cer --help >/dev/null && codex-exec-remote --help >/dev/null'
 ```
+
+The installer also checks that the recorded `codex` binary can run `app-server --help` inside the same clean shell.
 
 ---
 

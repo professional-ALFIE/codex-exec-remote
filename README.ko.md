@@ -83,15 +83,17 @@ curl -fsSL https://raw.githubusercontent.com/professional-ALFIE/codex-exec-remot
 - `bun install`로 의존성 설치
 - `bun build --compile`로 단일 바이너리 컴파일
 - 컴파일된 바이너리를 `~/.codex-exec-remote/runtime` 아래에 복사
-- 기본 noninteractive `bash -c` `PATH`에 들어 있는 첫 writable 절대경로 디렉터리(보통 `/usr/local/bin`)에 `codex-exec-remote`와 `cer` launcher 설치
-- 현재 `codex` 절대경로를 기록해서 clean shell에서도 plain `cer`가 `codex app-server`를 실행할 수 있게 구성
-- `env -i HOME="$HOME" /bin/bash -c` 안에서 `cer --help`와 `codex-exec-remote --help`로 설치 검증
+- 기본 noninteractive `bash -c` `PATH`에 들어 있는 첫 writable 절대경로 디렉터리(보통 `/usr/local/bin`)에 `codex-exec-remote`와 `cer` launcher 설치. `.`나 `./bin` 같은 relative PATH 엔트리는 자동 선택에서 제외
+- 현재 `codex` 절대경로를 `CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN`으로 기록해서 clean shell에서도 plain `cer`가 `codex app-server`를 실행할 수 있게 구성
+- `env -i HOME="$HOME" /bin/bash -c` 안에서 `cer --help`와 `codex-exec-remote --help`를 검증하고, 기록된 `codex` 바이너리로 `app-server --help`가 실행되는지도 확인
 
 **필수:** macOS 또는 Linux, [Codex CLI](https://github.com/openai/codex) 설치, Git, [Bun](https://bun.sh)
 
 > **업데이트?** 같은 명령을 다시 실행하면 됩니다.
 >
 > **launcher 디렉터리를 직접 고르고 싶다면?** 설치 전에 `CODEX_EXEC_REMOTE_BIN_DIR=/path`를 지정하세요. 그 디렉터리가 기본 noninteractive `PATH`에 없으면 installer는 interactive shell용 profile 업데이트로만 fallback합니다.
+>
+> **나중에 기본 codex 경로를 바꾸고 싶다면?** 실행할 때 `CODEX_EXEC_REMOTE_DEFAULT_CODEX_BIN=/absolute/path/to/codex`를 지정하면 installer가 기록한 기본값을 덮어쓸 수 있습니다.
 
 ### Bun 글로벌 설치
 
@@ -130,11 +132,15 @@ chmod +x /usr/local/bin/codex-exec-remote
 ln -sfn codex-exec-remote /usr/local/bin/cer
 ```
 
+환경에 따라 `/usr/local/bin` 대신 clean noninteractive `PATH` 안의 writable 절대경로 디렉터리를 사용하세요. `.`나 `./bin` 같은 relative PATH 엔트리는 자동 launcher 설치 대상으로 보지 않습니다.
+
 clean noninteractive shell에서도 launcher가 보이는지 확인:
 
 ```bash
 env -i HOME="$HOME" /bin/bash -c 'PATH="/usr/local/bin:/bin:/usr/bin"; cer --help >/dev/null && codex-exec-remote --help >/dev/null'
 ```
+
+installer는 같은 clean shell 안에서 기록된 `codex` 바이너리가 `app-server --help`를 실행할 수 있는지도 함께 확인합니다.
 
 ---
 
