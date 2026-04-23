@@ -430,6 +430,8 @@ async function captureProcessOutput(run: () => Promise<number>): Promise<{
 
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  const originalStdoutIsTTY = process.stdout.isTTY;
+  const originalStderrIsTTY = process.stderr.isTTY;
 
   const captureWrite = (bucket: "stdout" | "stderr") =>
     ((chunk: unknown, encoding?: unknown, callback?: unknown) => {
@@ -458,6 +460,9 @@ async function captureProcessOutput(run: () => Promise<number>): Promise<{
 
   process.stdout.write = captureWrite("stdout");
   process.stderr.write = captureWrite("stderr");
+  // Simulate redirected (non-TTY) environment so finalOutput() writes to stdout
+  (process.stdout as { isTTY: boolean }).isTTY = false;
+  (process.stderr as { isTTY: boolean }).isTTY = false;
 
   try {
     const exitCode = await run();
@@ -465,5 +470,7 @@ async function captureProcessOutput(run: () => Promise<number>): Promise<{
   } finally {
     process.stdout.write = originalStdoutWrite;
     process.stderr.write = originalStderrWrite;
+    (process.stdout as { isTTY: boolean }).isTTY = originalStdoutIsTTY;
+    (process.stderr as { isTTY: boolean }).isTTY = originalStderrIsTTY;
   }
 }

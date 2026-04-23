@@ -38,6 +38,11 @@ export function createOutput(json: boolean): Output {
       if (json) {
         return;
       }
+      // Match Codex original: skip stdout when both stdout and stderr are
+      // terminals — the user already saw the response via streamDelta on stderr.
+      if (process.stdout.isTTY && process.stderr.isTTY) {
+        return;
+      }
       writeStdout(text);
       if (!text.endsWith("\n")) {
         writeStdout("\n");
