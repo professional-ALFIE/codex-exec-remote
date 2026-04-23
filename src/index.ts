@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { basename } from "node:path";
+import { basename, join } from "node:path";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { AppServerClient } from "./client";
 import {
   mapRawThreadItem,
@@ -49,6 +50,7 @@ type PromptArgsBase = {
   remote: string;
   authTokenEnv?: string;
   json: boolean;
+  tmp: boolean;
   timeoutSec: number;
   codexBin: string;
 };
@@ -101,7 +103,7 @@ export async function main(argv: string[]): Promise<number> {
     parsed.prompt = stdinText;
   }
 
-  const output = createOutput(parsed.json);
+  const output = createOutput(parsed.json, parsed.tmp);
   let authToken: string | undefined;
   if (parsed.authTokenEnv) {
     authToken = process.env[parsed.authTokenEnv];
@@ -303,8 +305,6 @@ export async function main(argv: string[]): Promise<number> {
           continue;
         }
 
-        sink.info(`turn completed (status: ${params.turn.status})`);
-
         if (args.json && runningTodoList) {
           sink.jsonEvent({
             type: "item.completed",
@@ -333,6 +333,7 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         }
 
+        let canonicalText: string | null = null;
         try {
           const readRaw = await client!.request(WIRE.THREAD_READ, {
             threadId,
@@ -341,20 +342,26 @@ export async function main(argv: string[]): Promise<number> {
           if (!isThreadReadResult(readRaw)) {
             sink.warn("thread/read returned unexpected shape; using fallback");
           } else {
-            const canonical = extractCanonicalOutput(readRaw, targetTurnId);
-            if (canonical) {
-              sink.finalOutput(canonical);
-              return 0;
+            canonicalText = extractCanonicalOutput(readRaw, targetTurnId);
+            if (!canonicalText) {
+              sink.warn("thread/read returned no matching turn items; using fallback");
             }
-            sink.warn("thread/read returned no matching turn items; using fallback");
           }
         } catch (error) {
           sink.warn(`thread/read failed: ${String(error)}`);
         }
 
-        const fallback =
-          assistantMessages.length > 0 ? assistantMessages.join("\n") : deltaAccumulated;
-        sink.finalOutput(fallback);
+        const finalText = canonicalText
+          ?? (assistantMessages.length > 0 ? assistantMessages.join("\n") : deltaAccumulated);
+
+        if (args.tmp && finalText) {
+          const savedPath = saveTmpFile(threadId, finalText);
+          sink.info(`turn completed (status: ${params.turn.status}). saved: ${savedPath}`);
+        } else {
+          sink.info(`turn completed (status: ${params.turn.status})`);
+        }
+
+        sink.finalOutput(finalText);
         return 0;
       }
 
@@ -444,6 +451,33 @@ export async function main(argv: string[]): Promise<number> {
     }
   }
 }
+const TMP_DIR = join(process.cwd(), "tmp", "cer");
+
+function saveTmpFile(threadId: string, content: string): string {
+  mkdirSync(TMP_DIR, { recursive: true });
+
+  let maxN = 0;
+  const prefix = `${threadId}-`;
+  try {
+    for (const entry of readdirSync(TMP_DIR)) {
+      if (entry.startsWith(prefix) && entry.endsWith(".md")) {
+        const numStr = entry.slice(prefix.length, -3); // strip prefix and .md
+        const num = Number(numStr);
+        if (Number.isFinite(num) && num > maxN) {
+          maxN = num;
+        }
+      }
+    }
+  } catch {
+    // directory might not exist yet on first call after mkdirSync race
+  }
+
+  const nnn = String(maxN + 1).padStart(3, "0");
+  const filename = `${threadId}-${nnn}.md`;
+  const filepath = join(TMP_DIR, filename);
+  writeFileSync(filepath, content, "utf-8");
+  return `./tmp/cer/${filename}`;
+}
 
 async function runServe(args: ServeArgs): Promise<number> {
   const proc = Bun.spawn([
@@ -519,6 +553,7 @@ function parseStartArgs(tokens: string[]): StartArgs {
     remote: shared.remote,
     authTokenEnv: shared.authTokenEnv,
     json: shared.json,
+    tmp: shared.tmp,
     timeoutSec: shared.timeoutSec,
     codexBin: shared.codexBin
   };
@@ -553,6 +588,7 @@ function parseResumeArgs(tokens: string[]): ResumeArgs {
       remote: shared.remote,
       authTokenEnv: shared.authTokenEnv,
       json: shared.json,
+      tmp: shared.tmp,
       timeoutSec: shared.timeoutSec,
       codexBin: shared.codexBin
     };
@@ -579,6 +615,7 @@ function parseResumeArgs(tokens: string[]): ResumeArgs {
     remote: shared.remote,
     authTokenEnv: shared.authTokenEnv,
     json: shared.json,
+    tmp: shared.tmp,
     timeoutSec: shared.timeoutSec,
     codexBin: shared.codexBin
   };
@@ -588,6 +625,7 @@ function parsePromptFlags(tokens: string[]): {
   remote: string;
   authTokenEnv?: string;
   json: boolean;
+  tmp: boolean;
   timeoutSec: number;
   codexBin: string;
   positionals: string[];
@@ -595,6 +633,7 @@ function parsePromptFlags(tokens: string[]): {
   let remote = DEFAULT_REMOTE;
   let authTokenEnv: string | undefined;
   let json = false;
+  let tmp = false;
   let timeoutSec = 300;
   let codexBin = getDefaultCodexBin();
   const positionals: string[] = [];
@@ -622,6 +661,10 @@ function parsePromptFlags(tokens: string[]): {
       json = true;
       continue;
     }
+    if (token === "--tmp") {
+      tmp = true;
+      continue;
+    }
     if (token === "--codex-bin") {
       codexBin = expectValue(tokens, ++index, "--codex-bin");
       continue;
@@ -633,6 +676,7 @@ function parsePromptFlags(tokens: string[]): {
     remote,
     authTokenEnv,
     json,
+    tmp,
     timeoutSec,
     codexBin,
     positionals
@@ -674,6 +718,8 @@ Start / Resume Options:
                                [default: ws://127.0.0.1:4501]
   --auth-token-env <VAR>       Read Bearer token from this env var
   -j, --json                   Emit ThreadEvent JSONL to stdout
+  --tmp                        Save each turn output to ./tmp/cer/{threadId}-{NNN}.md
+                               Suppresses streaming; shows minimal progress
   --timeout <sec>              Max wait time in seconds
                                [default: 300]
   --codex-bin <path>           Path to codex binary

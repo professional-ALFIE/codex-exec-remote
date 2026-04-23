@@ -52,6 +52,7 @@ describe("index cli parsing", () => {
       remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
+      tmp: false,
       timeoutSec: 300,
       codexBin: "codex"
     });
@@ -64,6 +65,7 @@ describe("index cli parsing", () => {
       remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
+      tmp: false,
       timeoutSec: 300,
       codexBin: "codex"
     });
@@ -80,6 +82,7 @@ describe("index cli parsing", () => {
       remote: "ws://127.0.0.1:7777",
       authTokenEnv: undefined,
       json: false,
+      tmp: false,
       timeoutSec: 300,
       codexBin: "codex"
     });
@@ -94,6 +97,7 @@ describe("index cli parsing", () => {
       remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
+      tmp: false,
       timeoutSec: 300,
       codexBin: "codex"
     });
@@ -108,6 +112,7 @@ describe("index cli parsing", () => {
       remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
+      tmp: false,
       timeoutSec: 300,
       codexBin: "codex"
     });
@@ -122,6 +127,7 @@ describe("index cli parsing", () => {
       remote: "ws://127.0.0.1:4501",
       authTokenEnv: undefined,
       json: false,
+      tmp: false,
       timeoutSec: 300,
       codexBin: "codex"
     });
@@ -169,6 +175,7 @@ describe("index cli parsing", () => {
         remote: "ws://127.0.0.1:4501",
         authTokenEnv: undefined,
         json: false,
+        tmp: false,
         timeoutSec: 300,
         codexBin: "/opt/codex/bin/codex"
       });
@@ -181,6 +188,7 @@ describe("index cli parsing", () => {
         remote: "ws://127.0.0.1:4501",
         authTokenEnv: undefined,
         json: false,
+        tmp: false,
         timeoutSec: 300,
         codexBin: "/opt/codex/bin/codex"
       });

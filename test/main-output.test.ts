@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createServer, type Server as HttpServer } from "node:http";
 import { once } from "node:events";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import { main } from "../src/index";
 import { WIRE } from "../src/protocol";
@@ -474,3 +476,81 @@ async function captureProcessOutput(run: () => Promise<number>): Promise<{
     (process.stderr as { isTTY: boolean }).isTTY = originalStderrIsTTY;
   }
 }
+
+const TMP_DIR = join(process.cwd(), "tmp", "cer");
+
+function cleanTmpDir(): void {
+  try {
+    rmSync(TMP_DIR, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
+}
+
+describe("--tmp mode", () => {
+  afterEach(() => {
+    cleanTmpDir();
+  });
+
+  test("--tmp creates ./tmp/cer/{threadId}-001.md with canonical output", async () => {
+    const fixture = await startAppServerFixture();
+
+    const result = await captureProcessOutput(() =>
+      main(["start", "hello world", "--remote", fixture.url, "--tmp"])
+    );
+
+    expect(result.exitCode).toBe(0);
+
+    const files = Bun.spawnSync(["ls", TMP_DIR]).stdout.toString().trim().split("\n");
+    const tmpFiles = files.filter((f) => f.endsWith("-001.md"));
+    expect(tmpFiles.length).toBe(1);
+
+    const content = readFileSync(join(TMP_DIR, tmpFiles[0]), "utf-8");
+    expect(content).toBe("Hello from thread read");
+  });
+
+  test("--tmp auto-increments NNN based on existing files", async () => {
+    mkdirSync(TMP_DIR, { recursive: true });
+    // Pre-create a file to simulate an existing turn
+    writeFileSync(join(TMP_DIR, "thread-new-001.md"), "first turn");
+
+    const fixture = await startAppServerFixture();
+
+    const result = await captureProcessOutput(() =>
+      main(["start", "hello world", "--remote", fixture.url, "--tmp"])
+    );
+
+    expect(result.exitCode).toBe(0);
+
+    expect(existsSync(join(TMP_DIR, "thread-new-002.md"))).toBe(true);
+    const content = readFileSync(join(TMP_DIR, "thread-new-002.md"), "utf-8");
+    expect(content).toBe("Hello from thread read");
+  });
+
+  test("--tmp suppresses streamDelta but shows operating... in stderr", async () => {
+    const fixture = await startAppServerFixture();
+
+    const result = await captureProcessOutput(() =>
+      main(["start", "hello world", "--remote", fixture.url, "--tmp"])
+    );
+
+    expect(result.exitCode).toBe(0);
+    // streamDelta content should NOT appear in stderr
+    expect(result.stderr).not.toContain("Hello from delta");
+    // saved path should appear
+    expect(result.stderr).toContain("saved:");
+    expect(result.stderr).toContain(".md");
+  });
+
+  test("--tmp suppresses stdout (finalOutput skipped)", async () => {
+    const fixture = await startAppServerFixture();
+
+    const result = await captureProcessOutput(() =>
+      main(["start", "hello world", "--remote", fixture.url, "--tmp"])
+    );
+
+    expect(result.exitCode).toBe(0);
+    // In --tmp mode, stdout should be empty (no finalOutput)
+    expect(result.stdout).toBe("");
+  });
+});

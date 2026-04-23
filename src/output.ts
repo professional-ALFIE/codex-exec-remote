@@ -8,9 +8,11 @@ export interface Output {
   error(msg: string): void;
   finalOutput(text: string): void;
   jsonEvent(event: ThreadEvent): void;
+  /** Clear the "operating..." progress line (tmp mode only). No-op otherwise. */
+  clearOperating(): void;
 }
 
-export function createOutput(json: boolean): Output {
+export function createOutput(json: boolean, tmp = false): Output {
   const writeStderr = (msg: string): void => {
     process.stderr.write(msg);
   };
@@ -18,20 +20,51 @@ export function createOutput(json: boolean): Output {
     process.stdout.write(msg);
   };
 
+  let needsNewline = false;
+  let operatingShown = false;
+
+  const ensureNewline = (): void => {
+    if (needsNewline) {
+      writeStderr("\n");
+      needsNewline = false;
+    }
+  };
+
+  const clearOperatingLine = (): void => {
+    if (operatingShown) {
+      writeStderr("\r\x1b[K");
+      operatingShown = false;
+    }
+  };
+
   return {
     info(msg) {
+      clearOperatingLine();
+      ensureNewline();
       writeStderr(`[codex-exec-remote] ${msg}\n`);
     },
     streamDelta(delta) {
       if (json) {
         return;
       }
+      if (tmp) {
+        if (!operatingShown) {
+          writeStderr(`[codex-exec-remote] operating...\r`);
+          operatingShown = true;
+        }
+        return;
+      }
       writeStderr(delta);
+      needsNewline = delta.length > 0 && !delta.endsWith("\n");
     },
     warn(msg) {
+      clearOperatingLine();
+      ensureNewline();
       writeStderr(`[codex-exec-remote] ⚠ ${msg}\n`);
     },
     error(msg) {
+      clearOperatingLine();
+      ensureNewline();
       writeStderr(`[codex-exec-remote] ✗ ${msg}\n`);
     },
     finalOutput(text) {
@@ -40,7 +73,8 @@ export function createOutput(json: boolean): Output {
       }
       // Match Codex original: skip stdout when both stdout and stderr are
       // terminals — the user already saw the response via streamDelta on stderr.
-      if (process.stdout.isTTY && process.stderr.isTTY) {
+      // In tmp mode stdout is also skipped — output goes to file instead.
+      if (tmp || (process.stdout.isTTY && process.stderr.isTTY)) {
         return;
       }
       writeStdout(text);
@@ -50,6 +84,9 @@ export function createOutput(json: boolean): Output {
     },
     jsonEvent(event) {
       writeStdout(JSON.stringify(event) + "\n");
+    },
+    clearOperating() {
+      clearOperatingLine();
     }
   };
 }
